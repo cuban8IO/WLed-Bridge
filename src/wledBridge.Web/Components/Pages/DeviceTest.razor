@@ -53,6 +53,7 @@
         @if (IsConnected)
         {
             <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="Disconnect">Trennen</MudButton>
+            <MudButton Variant="Variant.Outlined" OnClick="ResetDevice">APC zurücksetzen</MudButton>
             <MudText Color="Color.Success">Verbunden: @SessionManager.Current!.Driver.DisplayName</MudText>
         }
         else
@@ -137,7 +138,11 @@
 
 <MudPaper Class="pa-4 mb-4" Elevation="2">
     <MudText Typo="Typo.h6" Class="mb-2">Encoder LED-Ring testen</MudText>
-    <MudSwitch T="bool" @bind-Value="_useFillRingStyle" Label="Balken-Füllung (Volume Style) statt Einzel-Position" Color="Color.Primary" Class="mb-2" />
+    <MudSelect T="EncoderRingStyle" Value="_ringStyle" ValueChanged="OnRingStyleChanged" Label="Ring-Stil (gilt für Hardware-Drehung und Slider)" Style="max-width: 340px;" Class="mb-2">
+        <MudSelectItem T="EncoderRingStyle" Value="EncoderRingStyle.Position">Einzel-Position</MudSelectItem>
+        <MudSelectItem T="EncoderRingStyle" Value="EncoderRingStyle.Fill">Balken (Volume Style)</MudSelectItem>
+        <MudSelectItem T="EncoderRingStyle" Value="EncoderRingStyle.Pan">Pan-Style (mittig)</MudSelectItem>
+    </MudSelect>
     <MudGrid>
         @foreach (var controlId in EncoderControlIds)
         {
@@ -210,7 +215,7 @@
     private string? _selectedOutput;
     private string _deviceName = "";
     private string _selectedColorHex = "#01FF95";
-    private bool _useFillRingStyle = true;
+    private EncoderRingStyle _ringStyle = EncoderRingStyle.Fill;
 
     private List<ControllerDevice> _savedDevices = [];
     private ControllerDevice? _currentDevice;
@@ -261,9 +266,37 @@
 
         var session = SessionManager.Connect(_selectedDriverKey, _selectedInput, _selectedOutput);
         AttachToSession(session);
+        ApplyRingStyleToAllEncoders();
     }
 
     private void Disconnect() => SessionManager.Disconnect();
+
+    private void ResetDevice() => SessionManager.Current?.Driver.Reset();
+
+    private void OnRingStyleChanged(EncoderRingStyle style)
+    {
+        _ringStyle = style;
+        ApplyRingStyleToAllEncoders();
+    }
+
+    private void ApplyRingStyleToAllEncoders()
+    {
+        var driver = SessionManager.Current?.Driver;
+        if (driver is null)
+        {
+            return;
+        }
+
+        foreach (var controlId in EncoderControlIds)
+        {
+            if (controlId is "cue-level" or "tempo-knob")
+            {
+                continue;
+            }
+
+            driver.SetLedRingValue(controlId, _encoderValues.GetValueOrDefault(controlId, 0.5), _ringStyle);
+        }
+    }
 
     private void AttachToSession(ControllerSession session)
     {
@@ -296,7 +329,23 @@
     private void OnControlChanged(object? sender, ControlValueChangedEventArgs e)
     {
         var line = $"{DateTime.Now:HH:mm:ss.fff}  {e.ControlId} ({e.Type})  value={e.Value:0.00}" + (e.IsOn is null ? "" : $"  isOn={e.IsOn}");
-        AppendLog(_controlLog, line);
+
+        InvokeAsync(() =>
+        {
+            _controlLog.Insert(0, line);
+            if (_controlLog.Count > 100)
+            {
+                _controlLog.RemoveAt(_controlLog.Count - 1);
+            }
+
+            if (e.Type == ControlType.Button && e.IsOn is bool isOn)
+            {
+                _buttonStates[e.ControlId] = isOn;
+                SessionManager.Current?.Driver.SetButtonLed(e.ControlId, isOn);
+            }
+
+            StateHasChanged();
+        });
     }
 
     private void AppendLog(List<string> log, string line)
@@ -365,8 +414,7 @@
     private void SetEncoderValue(string controlId, double value)
     {
         _encoderValues[controlId] = value;
-        var style = _useFillRingStyle ? EncoderRingStyle.Fill : EncoderRingStyle.Position;
-        SessionManager.Current?.Driver.SetLedRingValue(controlId, value, style);
+        SessionManager.Current?.Driver.SetLedRingValue(controlId, value, _ringStyle);
     }
 
     private void ToggleButtonLed(string controlId, bool isOn)

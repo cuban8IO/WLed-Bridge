@@ -24,5 +24,7 @@ public interface IControllerDriver
 
     void SetButtonLed(string controlId, bool isOn);
 
+    void Reset();
+
     event EventHandler<ControlValueChangedEventArgs>? ControlChanged;
 }

@@ -58,6 +58,7 @@ public class Apc40Mk2Driver : IControllerDriver
     {
         _output = output;
         _output.SendSysEx(AbletonLiveModeSysEx);
+        Reset();
     }
 
     public void Detach() => _output = null;
@@ -137,7 +138,12 @@ public class Apc40Mk2Driver : IControllerDriver
         if (entry.RingTypeDataNumber is int ringTypeId)
         {
             // Ring Type: 0=off, 1=Single, 2=Volume Style (fill), 3=Pan Style, 4-127=Single.
-            var styleValue = style == EncoderRingStyle.Fill ? 2 : 1;
+            var styleValue = style switch
+            {
+                EncoderRingStyle.Fill => 2,
+                EncoderRingStyle.Pan => 3,
+                _ => 1
+            };
             _output.Send(MidiMessage.ControlChange(entry.Channel, ringTypeId, styleValue));
         }
 
@@ -153,6 +159,28 @@ public class Apc40Mk2Driver : IControllerDriver
         }
 
         _output.Send(MidiMessage.NoteOn(entry.Channel, entry.DataNumber, isOn ? (byte)127 : (byte)0));
+    }
+
+    public void Reset()
+    {
+        if (_output is null)
+        {
+            return;
+        }
+
+        foreach (var entry in _entries)
+        {
+            switch (entry.Descriptor.Type)
+            {
+                case ControlType.Pad or ControlType.Button:
+                    _output.Send(MidiMessage.NoteOff(entry.Channel, entry.DataNumber));
+                    break;
+                case ControlType.Encoder when entry.RingTypeDataNumber is int ringTypeId:
+                    _output.Send(MidiMessage.ControlChange(entry.Channel, ringTypeId, 0));
+                    _encoderPositions[entry.Descriptor.ControlId] = 0.5;
+                    break;
+            }
+        }
     }
 
     private static List<ControlEntry> BuildLayout()
