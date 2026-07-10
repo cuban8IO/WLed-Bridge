@@ -20,7 +20,7 @@ public interface IControllerDriver
 
     void SetPadColor(string controlId, ControllerColor color);
 
-    void SetLedRingValue(string controlId, double value);
+    void SetLedRingValue(string controlId, double value, EncoderRingStyle style = EncoderRingStyle.Position);
 
     void SetButtonLed(string controlId, bool isOn);
 

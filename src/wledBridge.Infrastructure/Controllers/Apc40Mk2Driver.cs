@@ -19,6 +19,7 @@ public class Apc40Mk2Driver : IControllerDriver
     private readonly Dictionary<string, ControlEntry> _byControlId;
     private readonly Dictionary<RawAddress, ControlEntry> _byNoteAddress;
     private readonly Dictionary<RawAddress, ControlEntry> _byCcAddress;
+    private readonly Dictionary<string, double> _encoderPositions = [];
 
     private IMidiOutputPort? _output;
 
@@ -86,6 +87,15 @@ public class Apc40Mk2Driver : IControllerDriver
             isOn = message.CommandCode == 0x90 && message.Data2 > 0;
             value = isOn.Value ? 1.0 : 0.0;
         }
+        else if (descriptor.Type == ControlType.Encoder)
+        {
+            // Encoders are relative/endless: data2 is a signed step count (1-63 = clockwise,
+            // 65-127 = counter-clockwise), not an absolute position, so it's accumulated here.
+            var delta = message.Data2 < 64 ? message.Data2 : message.Data2 - 128;
+            var current = _encoderPositions.GetValueOrDefault(descriptor.ControlId, 0.5);
+            value = Math.Clamp(current + (delta / 127.0), 0.0, 1.0);
+            _encoderPositions[descriptor.ControlId] = value;
+        }
         else
         {
             value = message.Data2 / 127.0;
@@ -110,15 +120,23 @@ public class Apc40Mk2Driver : IControllerDriver
         _output.Send(MidiMessage.NoteOn(entry.Channel, entry.DataNumber, velocity));
     }
 
-    public void SetLedRingValue(string controlId, double value)
+    public void SetLedRingValue(string controlId, double value, EncoderRingStyle style = EncoderRingStyle.Position)
     {
         if (_output is null || !_byControlId.TryGetValue(controlId, out var entry) || entry.Descriptor.Type != ControlType.Encoder)
         {
             return;
         }
 
-        var midiValue = (int)Math.Clamp(Math.Round(value * 127), 0, 127);
-        _output.Send(MidiMessage.ControlChange(entry.Channel, entry.DataNumber, midiValue));
+        var clamped = Math.Clamp(value, 0.0, 1.0);
+        _encoderPositions[controlId] = clamped;
+
+        var midiValue = (int)Math.Clamp(Math.Round(clamped * 127), 0, 127);
+
+        // The ring "fill" behavior is unconfirmed against real hardware: sending the position
+        // on channel+1 is a plausible-but-unverified convention for some Akai gear, offered
+        // here as an experiment rather than a confirmed protocol detail.
+        var channel = style == EncoderRingStyle.Fill ? entry.Channel + 1 : entry.Channel;
+        _output.Send(MidiMessage.ControlChange(channel, entry.DataNumber, midiValue));
     }
 
     public void SetButtonLed(string controlId, bool isOn)
