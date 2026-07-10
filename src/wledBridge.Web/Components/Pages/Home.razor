@@ -1,0 +1,18 @@
+@page "/"
+
+<PageTitle>WLED MIDI Bridge</PageTitle>
+
+<MudText Typo="Typo.h3" GutterBottom="true">WLED MIDI Bridge</MudText>
+<MudText Typo="Typo.body1" Class="mb-4">
+    Grundgerüst in Clean Architecture &mdash; MIDI-Eingänge und WLED-Geräte werden über austauschbare
+    Abstraktionen (<code>IMidiInputService</code>, <code>IWledClient</code>) verbunden.
+</MudText>
+
+<MudPaper Class="pa-4" Elevation="2">
+    <MudText Typo="Typo.h6">Nächste Schritte</MudText>
+    <MudList T="string" Dense="true">
+        <MudListItem T="string">MIDI-Bibliothek für <code>IMidiInputService</code> anbinden</MudListItem>
+        <MudListItem T="string">WLED-Geräteverwaltung (CRUD) ergänzen</MudListItem>
+        <MudListItem T="string">MIDI-zu-WLED-Mapping-Engine implementieren</MudListItem>
+    </MudList>
+</MudPaper>

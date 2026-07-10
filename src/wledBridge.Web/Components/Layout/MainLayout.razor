@@ -1,0 +1,27 @@
+@inherits LayoutComponentBase
+@using wledBridge.Web.Theme
+
+<MudThemeProvider Theme="BeatportTheme.Theme" IsDarkMode="true" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="0">
+        <MudText Typo="Typo.h5">WLED MIDI Bridge</MudText>
+    </MudAppBar>
+    <MudDrawer Open="true" Elevation="0" Variant="DrawerVariant.Persistent">
+        <NavMenu />
+    </MudDrawer>
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.Large" Class="my-4">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">🗙</span>
+</div>

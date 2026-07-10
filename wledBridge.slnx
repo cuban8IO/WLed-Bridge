@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/wledBridge.Application/wledBridge.Application.csproj" />
+    <Project Path="src/wledBridge.Domain/wledBridge.Domain.csproj" />
+    <Project Path="src/wledBridge.Infrastructure/wledBridge.Infrastructure.csproj" />
+    <Project Path="src/wledBridge.Web/wledBridge.Web.csproj" />
+  </Folder>
+</Solution>
