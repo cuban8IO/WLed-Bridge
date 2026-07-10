@@ -1,1 +1,1 @@
-# WLed Midi Bridge
+# WLed Midi Controller
