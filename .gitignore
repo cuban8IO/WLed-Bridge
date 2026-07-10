@@ -8,6 +8,7 @@
 
 # Claude Code local settings
 .claude/settings.local.json
+.claude/scheduled_tasks.lock
 
 # SQLite database files (local runtime data)
 src/wledBridge.Web/*.db

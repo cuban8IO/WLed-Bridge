@@ -107,16 +107,23 @@
 
 <MudPaper Class="pa-4 mb-4" Elevation="2">
     <MudText Typo="Typo.h6" Class="mb-2">Pad-Farben testen</MudText>
-    <MudColorPicker @bind-Text="_selectedColorHex" Label="Farbe" Style="max-width: 260px;" Class="mb-2" />
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-2">
+        <MudColorPicker @bind-Text="_selectedColorHex" Label="Farbe" Style="max-width: 260px;" />
+        <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="ClearAllPadColors">Alle löschen</MudButton>
+    </MudStack>
     <div style="display: grid; grid-template-columns: repeat(8, 40px); gap: 4px;">
-        @for (var col = 0; col < 8; col++)
+        @for (var row = 4; row >= 0; row--)
         {
-            for (var row = 0; row < 5; row++)
+            for (var col = 0; col < 8; col++)
             {
                 var controlId = $"pad-{col}-{row}";
                 <div @onclick="@(() => ApplyPadColor(controlId))"
                      style="@GetPadStyle(controlId)"
-                     title="@controlId"></div>
+                     title="@controlId">
+                    <span @onclick="@(() => ClearPadColor(controlId))"
+                          @onclick:stopPropagation="true"
+                          style="position:absolute;top:-6px;right:-4px;width:14px;height:14px;line-height:14px;font-size:11px;text-align:center;border-radius:50%;background:#333;color:#fff;cursor:pointer;">&times;</span>
+                </div>
             }
         }
     </div>
@@ -301,7 +308,7 @@
     private string GetPadStyle(string controlId)
     {
         var color = _padColors.GetValueOrDefault(controlId, new ControllerColor(40, 40, 40));
-        return $"width:36px;height:36px;border-radius:4px;cursor:pointer;background-color:rgb({color.R},{color.G},{color.B});";
+        return $"position:relative;width:36px;height:36px;border-radius:4px;cursor:pointer;background-color:rgb({color.R},{color.G},{color.B});";
     }
 
     private void ApplyPadColor(string controlId)
@@ -314,6 +321,23 @@
         var color = ParseHexColor(_selectedColorHex);
         _padColors[controlId] = color;
         SessionManager.Current.Driver.SetPadColor(controlId, color);
+    }
+
+    private void ClearPadColor(string controlId)
+    {
+        _padColors[controlId] = ControllerColor.Off;
+        SessionManager.Current?.Driver.SetPadColor(controlId, ControllerColor.Off);
+    }
+
+    private void ClearAllPadColors()
+    {
+        for (var col = 0; col < 8; col++)
+        {
+            for (var row = 0; row < 5; row++)
+            {
+                ClearPadColor($"pad-{col}-{row}");
+            }
+        }
     }
 
     private static ControllerColor ParseHexColor(string hex)

@@ -132,8 +132,8 @@ public class Apc40Mk2Driver : IControllerDriver
             {
                 entries.Add(new ControlEntry(
                     new ControlDescriptor($"pad-{col}-{row}", ControlType.Pad, $"Pad {col + 1}/{row + 1}", row, col, true, false),
-                    col,
-                    row));
+                    0,
+                    (row * 8) + col));
             }
 
             entries.Add(new ControlEntry(new ControlDescriptor($"fader-{col}", ControlType.Fader, $"Fader {col + 1}", null, col, false, false), col, 7));
