@@ -151,6 +151,7 @@ public class Apc40Mk2Driver : IControllerDriver
             entries.Add(new ControlEntry(new ControlDescriptor($"track-recarm-{col}", ControlType.Button, $"Record Arm {col + 1}", null, col, false, false), col, 48));
             entries.Add(new ControlEntry(new ControlDescriptor($"track-select-{col}", ControlType.Button, $"Track Select {col + 1}", null, col, false, false), col, 51));
             entries.Add(new ControlEntry(new ControlDescriptor($"clip-stop-{col}", ControlType.Button, $"Clip Stop {col + 1}", null, col, false, false), col, 52));
+            entries.Add(new ControlEntry(new ControlDescriptor($"crossfader-assign-{col}", ControlType.Button, $"Crossfader Assign A/B {col + 1}", null, col, false, true), col, 66));
             entries.Add(new ControlEntry(new ControlDescriptor($"device-encoder-{col}", ControlType.Encoder, $"Device Encoder {col + 1}", 0, col, false, true), 0, 16 + col));
             entries.Add(new ControlEntry(new ControlDescriptor($"pan-encoder-{col}", ControlType.Encoder, $"Pan Encoder {col + 1}", 1, col, false, true), 0, 48 + col));
         }
