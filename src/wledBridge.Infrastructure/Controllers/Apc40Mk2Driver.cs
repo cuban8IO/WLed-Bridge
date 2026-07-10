@@ -94,7 +94,7 @@ public class Apc40Mk2Driver : IControllerDriver
             // Cue Level and Tempo Knob report relative steps (1-63 clockwise, 64-127
             // counter-clockwise) per the protocol's "Type CC2: Relative Controller" spec.
             var delta = message.Data2 < 64 ? message.Data2 : message.Data2 - 128;
-            var current = _encoderPositions.GetValueOrDefault(descriptor.ControlId, 0.5);
+            var current = _encoderPositions.GetValueOrDefault(descriptor.ControlId, 0.0);
             value = Math.Clamp(current + (delta / 127.0), 0.0, 1.0);
             _encoderPositions[descriptor.ControlId] = value;
         }
@@ -200,9 +200,16 @@ public class Apc40Mk2Driver : IControllerDriver
                 case ControlType.Pad or ControlType.Button:
                     _output.Send(MidiMessage.NoteOff(entry.Channel, entry.DataNumber));
                     break;
-                case ControlType.Encoder when entry.RingTypeDataNumber is int ringTypeId:
-                    _output.Send(MidiMessage.ControlChange(entry.Channel, ringTypeId, 0));
-                    _encoderPositions[entry.Descriptor.ControlId] = 0.5;
+
+                case ControlType.Encoder:
+                    _encoderPositions[entry.Descriptor.ControlId] = 0.0;
+                    if (entry.RingTypeDataNumber is not null)
+                    {
+                        // Leave rings on Single Position at 0% rather than switching them off -
+                        // otherwise no ring shows anything until a style is explicitly reselected.
+                        SendRingType(entry, EncoderRingStyle.Position);
+                        _output.Send(MidiMessage.ControlChange(entry.Channel, entry.DataNumber, 0));
+                    }
                     break;
             }
         }

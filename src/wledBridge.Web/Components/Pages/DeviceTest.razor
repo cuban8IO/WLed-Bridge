@@ -271,7 +271,17 @@
 
     private void Disconnect() => SessionManager.Disconnect();
 
-    private void ResetDevice() => SessionManager.Current?.Driver.Reset();
+    private void ResetDevice()
+    {
+        SessionManager.Current?.Driver.Reset();
+
+        // The driver's Reset() leaves rings on Single Position at 0%, so mirror that here
+        // to keep the dropdown and test-page displays in sync with the actual device state.
+        _ringStyle = EncoderRingStyle.Position;
+        _encoderValues.Clear();
+        _padColors.Clear();
+        _buttonStates.Clear();
+    }
 
     private void OnRingStyleChanged(EncoderRingStyle style)
     {
