@@ -83,7 +83,10 @@
 <MudGrid Class="mb-4">
     <MudItem xs="12" md="6">
         <MudPaper Class="pa-4" Elevation="2">
-            <MudText Typo="Typo.h6" Class="mb-2">Raw MIDI Monitor</MudText>
+            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-2">
+                <MudText Typo="Typo.h6">Raw MIDI Monitor</MudText>
+                <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="@(() => _rawLog.Clear())">Leeren</MudButton>
+            </MudStack>
             <div style="height: 220px; overflow-y: auto; font-family: monospace; font-size: 0.8rem;">
                 @foreach (var line in _rawLog)
                 {
@@ -94,7 +97,10 @@
     </MudItem>
     <MudItem xs="12" md="6">
         <MudPaper Class="pa-4" Elevation="2">
-            <MudText Typo="Typo.h6" Class="mb-2">Erkannte Control-Events</MudText>
+            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-2">
+                <MudText Typo="Typo.h6">Erkannte Control-Events</MudText>
+                <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="@(() => _controlLog.Clear())">Leeren</MudButton>
+            </MudStack>
             <div style="height: 220px; overflow-y: auto; font-family: monospace; font-size: 0.8rem;">
                 @foreach (var line in _controlLog)
                 {
@@ -325,7 +331,7 @@
 
     private void ClearPadColor(string controlId)
     {
-        _padColors[controlId] = ControllerColor.Off;
+        _padColors.Remove(controlId);
         SessionManager.Current?.Driver.SetPadColor(controlId, ControllerColor.Off);
     }
 
