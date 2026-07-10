@@ -2,7 +2,7 @@ using MudBlazor;
 
 namespace wledBridge.Web.Theme;
 
-public static class BeatportTheme
+public static class DarkTheme
 {
     private static readonly string[] FontFamily = ["Oswald", "sans-serif"];
 

@@ -10,7 +10,7 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure(this IServiceCollection services)
     {
         services.AddHttpClient<IWledClient, WledHttpClient>();
-        services.AddSingleton<IMidiInputService, NullMidiInputService>();
+        services.AddSingleton<IMidiInputService, NAudioMidiInputService>();
 
         return services;
     }
