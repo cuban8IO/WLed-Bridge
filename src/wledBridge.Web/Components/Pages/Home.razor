@@ -4,14 +4,15 @@
 
 <MudText Typo="Typo.h3" GutterBottom="true">WLED MIDI Bridge</MudText>
 <MudText Typo="Typo.body1" Class="mb-4">
-    Grundgerüst in Clean Architecture &mdash; MIDI-Eingänge und WLED-Geräte werden über austauschbare
-    Abstraktionen (<code>IMidiInputService</code>, <code>IWledClient</code>) verbunden.
+    Grundgerüst in Clean Architecture &mdash; MIDI-Controller (z.B. Akai APC40 mkII) werden über
+    austauschbare Treiber (<code>IControllerDriver</code>) und MIDI-Ports (<code>IMidiPortFactory</code>)
+    angebunden und lassen sich flexibel einem virtuellen Mischpult zuweisen.
 </MudText>
 
 <MudPaper Class="pa-4" Elevation="2">
     <MudText Typo="Typo.h6">Nächste Schritte</MudText>
     <MudList T="string" Dense="true">
-        <MudListItem T="string">MIDI-Bibliothek für <code>IMidiInputService</code> anbinden</MudListItem>
+        <MudListItem T="string">Treiber und Zuweisung auf der <MudLink Href="devices/test">Device-Test-Seite</MudLink> gegen echte Hardware verifizieren</MudListItem>
         <MudListItem T="string">WLED-Geräteverwaltung (CRUD) ergänzen</MudListItem>
         <MudListItem T="string">MIDI-zu-WLED-Mapping-Engine implementieren</MudListItem>
     </MudList>

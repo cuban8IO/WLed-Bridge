@@ -1,6 +1,8 @@
+using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
 using wledBridge.Application;
 using wledBridge.Infrastructure;
+using wledBridge.Infrastructure.Persistence;
 using wledBridge.Web.Components;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -12,9 +14,15 @@ builder.Services.AddRazorComponents()
 builder.Services.AddMudServices();
 
 builder.Services.AddApplication();
-builder.Services.AddInfrastructure();
+builder.Services.AddInfrastructure(builder.Configuration);
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<WledBridgeDbContext>();
+    dbContext.Database.Migrate();
+}
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())

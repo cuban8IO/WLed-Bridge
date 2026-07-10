@@ -1,0 +1,449 @@
+@page "/devices/test"
+@rendermode InteractiveServer
+@implements IDisposable
+@using Microsoft.EntityFrameworkCore
+@using wledBridge.Application.Abstractions.Controllers
+@using wledBridge.Application.Abstractions.Midi
+@using wledBridge.Application.Abstractions.Persistence
+@using wledBridge.Application.Controllers
+@using wledBridge.Domain.Controllers
+@inject IControllerSessionManager SessionManager
+@inject IMidiPortFactory PortFactory
+@inject IControllerDriverFactory DriverFactory
+@inject IApplicationDbContext Db
+
+<PageTitle>Device Test</PageTitle>
+
+<MudText Typo="Typo.h3" GutterBottom="true">Device Test</MudText>
+
+<MudPaper Class="pa-4 mb-4" Elevation="2">
+    <MudText Typo="Typo.h6" Class="mb-2">Verbindung</MudText>
+    <MudGrid>
+        <MudItem xs="12" sm="4">
+            <MudSelect T="string" Label="Treiber" @bind-Value="_selectedDriverKey">
+                @foreach (var key in _driverKeys)
+                {
+                    <MudSelectItem T="string" Value="@key">@GetDriverDisplayName(key)</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="4">
+            <MudSelect T="string" Label="MIDI Eingang" @bind-Value="_selectedInput">
+                @foreach (var name in _inputDevices)
+                {
+                    <MudSelectItem T="string" Value="@name">@name</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="4">
+            <MudSelect T="string" Label="MIDI Ausgang" @bind-Value="_selectedOutput">
+                @foreach (var name in _outputDevices)
+                {
+                    <MudSelectItem T="string" Value="@name">@name</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+    </MudGrid>
+    <MudStack Row="true" Class="mt-3" Spacing="2" AlignItems="AlignItems.Center">
+        @if (IsConnected)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="Disconnect">Trennen</MudButton>
+            <MudText Color="Color.Success">Verbunden: @SessionManager.Current!.Driver.DisplayName</MudText>
+        }
+        else
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Connect" Disabled="@(_selectedDriverKey is null || _selectedInput is null || _selectedOutput is null)">Verbinden</MudButton>
+        }
+    </MudStack>
+    <MudStack Row="true" Class="mt-3" Spacing="2" AlignItems="AlignItems.Center">
+        <MudTextField T="string" Label="Gerätename" @bind-Value="_deviceName" Style="max-width: 260px;" />
+        <MudButton Variant="Variant.Outlined" OnClick="SaveDevice" Disabled="@(_selectedDriverKey is null)">Als Gerät speichern</MudButton>
+    </MudStack>
+    @if (_savedDevices.Count > 0)
+    {
+        <MudList T="string" Dense="true" Class="mt-2">
+            @foreach (var device in _savedDevices)
+            {
+                <MudListItem T="string">
+                    <div class="d-flex align-center justify-space-between" style="width: 100%;">
+                        <span>@device.Name (@device.DriverKey)</span>
+                        <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="@(() => LoadDevice(device))">Laden &amp; Verbinden</MudButton>
+                    </div>
+                </MudListItem>
+            }
+        </MudList>
+    }
+</MudPaper>
+
+<MudGrid Class="mb-4">
+    <MudItem xs="12" md="6">
+        <MudPaper Class="pa-4" Elevation="2">
+            <MudText Typo="Typo.h6" Class="mb-2">Raw MIDI Monitor</MudText>
+            <div style="height: 220px; overflow-y: auto; font-family: monospace; font-size: 0.8rem;">
+                @foreach (var line in _rawLog)
+                {
+                    <div>@line</div>
+                }
+            </div>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" md="6">
+        <MudPaper Class="pa-4" Elevation="2">
+            <MudText Typo="Typo.h6" Class="mb-2">Erkannte Control-Events</MudText>
+            <div style="height: 220px; overflow-y: auto; font-family: monospace; font-size: 0.8rem;">
+                @foreach (var line in _controlLog)
+                {
+                    <div>@line</div>
+                }
+            </div>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+<MudPaper Class="pa-4 mb-4" Elevation="2">
+    <MudText Typo="Typo.h6" Class="mb-2">Pad-Farben testen</MudText>
+    <MudColorPicker @bind-Text="_selectedColorHex" Label="Farbe" Style="max-width: 260px;" Class="mb-2" />
+    <div style="display: grid; grid-template-columns: repeat(8, 40px); gap: 4px;">
+        @for (var col = 0; col < 8; col++)
+        {
+            for (var row = 0; row < 5; row++)
+            {
+                var controlId = $"pad-{col}-{row}";
+                <div @onclick="@(() => ApplyPadColor(controlId))"
+                     style="@GetPadStyle(controlId)"
+                     title="@controlId"></div>
+            }
+        }
+    </div>
+</MudPaper>
+
+<MudPaper Class="pa-4 mb-4" Elevation="2">
+    <MudText Typo="Typo.h6" Class="mb-2">Encoder LED-Ring testen</MudText>
+    <MudGrid>
+        @foreach (var controlId in EncoderControlIds)
+        {
+            <MudItem xs="12" sm="6" md="3">
+                <MudText Typo="Typo.body2">@controlId</MudText>
+                <MudSlider T="double" Min="0" Max="1" Step="0.01" Value="@_encoderValues.GetValueOrDefault(controlId)" ValueChanged="@(v => SetEncoderValue(controlId, v))" />
+            </MudItem>
+        }
+    </MudGrid>
+</MudPaper>
+
+<MudPaper Class="pa-4 mb-4" Elevation="2">
+    <MudText Typo="Typo.h6" Class="mb-2">Button-LEDs testen</MudText>
+    <MudGrid>
+        @foreach (var controlId in ButtonControlIds)
+        {
+            <MudItem xs="6" sm="3" md="2">
+                <MudSwitch T="bool" Value="@_buttonStates.GetValueOrDefault(controlId)" ValueChanged="@(v => ToggleButtonLed(controlId, v))" Label="@controlId" Color="Color.Primary" />
+            </MudItem>
+        }
+    </MudGrid>
+</MudPaper>
+
+<MudPaper Class="pa-4" Elevation="2">
+    <MudText Typo="Typo.h6" Class="mb-2">Virtuelles Mischpult &ndash; Zuweisung</MudText>
+    @if (_mixer is null)
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateVirtualMixer" Disabled="@(!IsConnected)">Virtuellen Mixer für dieses Gerät erstellen</MudButton>
+    }
+    else
+    {
+        <MudText Typo="Typo.body2" Class="mb-2">Mixer: @_mixer.Name</MudText>
+        <div style="max-height: 400px; overflow-y: auto;">
+            <table style="width: 100%;">
+                <thead>
+                    <tr>
+                        <th style="text-align:left;">Physisches Control</th>
+                        <th style="text-align:left;">Zugewiesenes virtuelles Control</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var descriptor in SessionManager.Current!.Driver.ControlLayout)
+                    {
+                        <tr>
+                            <td>@descriptor.ControlId</td>
+                            <td>
+                                <MudSelect T="Guid?" Value="@GetMappedVirtualControlId(descriptor.ControlId)" ValueChanged="@(v => SetMapping(descriptor.ControlId, v))" Dense="true">
+                                    <MudSelectItem T="Guid?" Value="@((Guid?)null)">(keine)</MudSelectItem>
+                                    @foreach (var vc in _mixer.Controls)
+                                    {
+                                        <MudSelectItem T="Guid?" Value="@((Guid?)vc.Id)">@vc.Name</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</MudPaper>
+
+@code {
+    private IReadOnlyList<string> _driverKeys = [];
+    private IReadOnlyList<string> _inputDevices = [];
+    private IReadOnlyList<string> _outputDevices = [];
+
+    private string? _selectedDriverKey;
+    private string? _selectedInput;
+    private string? _selectedOutput;
+    private string _deviceName = "";
+    private string _selectedColorHex = "#01FF95";
+
+    private List<ControllerDevice> _savedDevices = [];
+    private ControllerDevice? _currentDevice;
+    private VirtualMixer? _mixer;
+    private List<ControlMapping> _mappings = [];
+
+    private readonly List<string> _rawLog = [];
+    private readonly List<string> _controlLog = [];
+    private readonly Dictionary<string, ControllerColor> _padColors = [];
+    private readonly Dictionary<string, double> _encoderValues = [];
+    private readonly Dictionary<string, bool> _buttonStates = [];
+
+    private bool IsConnected => SessionManager.Current is not null;
+
+    private IEnumerable<string> EncoderControlIds =>
+        SessionManager.Current?.Driver.ControlLayout.Where(c => c.Type == ControlType.Encoder).Select(c => c.ControlId) ?? [];
+
+    private IEnumerable<string> ButtonControlIds =>
+        SessionManager.Current?.Driver.ControlLayout.Where(c => c.Type == ControlType.Button).Select(c => c.ControlId) ?? [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _driverKeys = DriverFactory.AvailableDriverKeys;
+        _inputDevices = PortFactory.GetInputDeviceNames();
+        _outputDevices = PortFactory.GetOutputDeviceNames();
+        _selectedDriverKey = _driverKeys.FirstOrDefault();
+        _selectedInput = _inputDevices.FirstOrDefault();
+        _selectedOutput = _outputDevices.FirstOrDefault();
+
+        _savedDevices = await Db.ControllerDevices.ToListAsync();
+
+        SessionManager.SessionChanged += OnSessionChanged;
+
+        if (SessionManager.Current is not null)
+        {
+            AttachToSession(SessionManager.Current);
+        }
+    }
+
+    private string GetDriverDisplayName(string driverKey) => DriverFactory.Create(driverKey).DisplayName;
+
+    private void Connect()
+    {
+        if (_selectedDriverKey is null || _selectedInput is null || _selectedOutput is null)
+        {
+            return;
+        }
+
+        var session = SessionManager.Connect(_selectedDriverKey, _selectedInput, _selectedOutput);
+        AttachToSession(session);
+    }
+
+    private void Disconnect() => SessionManager.Disconnect();
+
+    private void AttachToSession(ControllerSession session)
+    {
+        session.Driver.ControlChanged += OnControlChanged;
+        session.Input.MessageReceived += OnRawMessage;
+        session.Input.SysExReceived += OnRawSysEx;
+    }
+
+    private void DetachFromSession(ControllerSession session)
+    {
+        session.Driver.ControlChanged -= OnControlChanged;
+        session.Input.MessageReceived -= OnRawMessage;
+        session.Input.SysExReceived -= OnRawSysEx;
+    }
+
+    private void OnSessionChanged(object? sender, EventArgs e) => InvokeAsync(StateHasChanged);
+
+    private void OnRawMessage(object? sender, MidiMessage message)
+    {
+        var line = $"{DateTime.Now:HH:mm:ss.fff}  ch{message.Channel:00}  status=0x{message.Status:X2}  data1={message.Data1}  data2={message.Data2}";
+        AppendLog(_rawLog, line);
+    }
+
+    private void OnRawSysEx(object? sender, byte[] data)
+    {
+        var line = $"{DateTime.Now:HH:mm:ss.fff}  SysEx [{data.Length} bytes] {Convert.ToHexString(data)}";
+        AppendLog(_rawLog, line);
+    }
+
+    private void OnControlChanged(object? sender, ControlValueChangedEventArgs e)
+    {
+        var line = $"{DateTime.Now:HH:mm:ss.fff}  {e.ControlId} ({e.Type})  value={e.Value:0.00}" + (e.IsOn is null ? "" : $"  isOn={e.IsOn}");
+        AppendLog(_controlLog, line);
+    }
+
+    private void AppendLog(List<string> log, string line)
+    {
+        InvokeAsync(() =>
+        {
+            log.Insert(0, line);
+            if (log.Count > 100)
+            {
+                log.RemoveAt(log.Count - 1);
+            }
+
+            StateHasChanged();
+        });
+    }
+
+    private string GetPadStyle(string controlId)
+    {
+        var color = _padColors.GetValueOrDefault(controlId, new ControllerColor(40, 40, 40));
+        return $"width:36px;height:36px;border-radius:4px;cursor:pointer;background-color:rgb({color.R},{color.G},{color.B});";
+    }
+
+    private void ApplyPadColor(string controlId)
+    {
+        if (SessionManager.Current is null)
+        {
+            return;
+        }
+
+        var color = ParseHexColor(_selectedColorHex);
+        _padColors[controlId] = color;
+        SessionManager.Current.Driver.SetPadColor(controlId, color);
+    }
+
+    private static ControllerColor ParseHexColor(string hex)
+    {
+        hex = hex.TrimStart('#');
+        if (hex.Length < 6)
+        {
+            return ControllerColor.Off;
+        }
+
+        var r = Convert.ToByte(hex[..2], 16);
+        var g = Convert.ToByte(hex[2..4], 16);
+        var b = Convert.ToByte(hex[4..6], 16);
+        return new ControllerColor(r, g, b);
+    }
+
+    private void SetEncoderValue(string controlId, double value)
+    {
+        _encoderValues[controlId] = value;
+        SessionManager.Current?.Driver.SetLedRingValue(controlId, value);
+    }
+
+    private void ToggleButtonLed(string controlId, bool isOn)
+    {
+        _buttonStates[controlId] = isOn;
+        SessionManager.Current?.Driver.SetButtonLed(controlId, isOn);
+    }
+
+    private async Task SaveDevice()
+    {
+        if (_selectedDriverKey is null)
+        {
+            return;
+        }
+
+        var device = new ControllerDevice
+        {
+            Name = string.IsNullOrWhiteSpace(_deviceName) ? _selectedDriverKey : _deviceName,
+            DriverKey = _selectedDriverKey,
+            MidiInputDeviceName = _selectedInput,
+            MidiOutputDeviceName = _selectedOutput
+        };
+
+        Db.ControllerDevices.Add(device);
+        await Db.SaveChangesAsync();
+        _currentDevice = device;
+        _savedDevices = await Db.ControllerDevices.ToListAsync();
+    }
+
+    private void LoadDevice(ControllerDevice device)
+    {
+        _currentDevice = device;
+        _selectedDriverKey = device.DriverKey;
+        _selectedInput = device.MidiInputDeviceName;
+        _selectedOutput = device.MidiOutputDeviceName;
+        Connect();
+    }
+
+    private async Task CreateVirtualMixer()
+    {
+        var driver = SessionManager.Current?.Driver;
+        if (driver is null)
+        {
+            return;
+        }
+
+        if (_currentDevice is null)
+        {
+            await SaveDevice();
+        }
+
+        var mixer = new VirtualMixer { Name = $"{driver.DisplayName} Mixer" };
+
+        foreach (var descriptor in driver.ControlLayout)
+        {
+            mixer.Controls.Add(new VirtualControl
+            {
+                VirtualMixerId = mixer.Id,
+                Name = descriptor.Label,
+                Type = descriptor.Type
+            });
+        }
+
+        Db.VirtualMixers.Add(mixer);
+        await Db.SaveChangesAsync();
+
+        _mixer = mixer;
+        _mappings = await Db.ControlMappings.Where(m => m.ControllerDeviceId == _currentDevice!.Id).ToListAsync();
+    }
+
+    private Guid? GetMappedVirtualControlId(string physicalControlId) =>
+        _mappings.FirstOrDefault(m => m.PhysicalControlId == physicalControlId)?.VirtualControlId;
+
+    private async Task SetMapping(string physicalControlId, Guid? virtualControlId)
+    {
+        var existing = _mappings.FirstOrDefault(m => m.PhysicalControlId == physicalControlId);
+
+        if (virtualControlId is null)
+        {
+            if (existing is not null)
+            {
+                Db.ControlMappings.Remove(existing);
+                _mappings.Remove(existing);
+                await Db.SaveChangesAsync();
+            }
+
+            return;
+        }
+
+        if (existing is not null)
+        {
+            existing.VirtualControlId = virtualControlId.Value;
+        }
+        else
+        {
+            existing = new ControlMapping
+            {
+                ControllerDeviceId = _currentDevice!.Id,
+                PhysicalControlId = physicalControlId,
+                VirtualControlId = virtualControlId.Value
+            };
+            Db.ControlMappings.Add(existing);
+            _mappings.Add(existing);
+        }
+
+        await Db.SaveChangesAsync();
+    }
+
+    public void Dispose()
+    {
+        SessionManager.SessionChanged -= OnSessionChanged;
+
+        if (SessionManager.Current is not null)
+        {
+            DetachFromSession(SessionManager.Current);
+        }
+    }
+}

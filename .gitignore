@@ -9,6 +9,11 @@
 # Claude Code local settings
 .claude/settings.local.json
 
+# SQLite database files (local runtime data)
+src/wledBridge.Web/*.db
+src/wledBridge.Web/*.db-shm
+src/wledBridge.Web/*.db-wal
+
 # User-specific files
 *.rsuser
 *.suo
