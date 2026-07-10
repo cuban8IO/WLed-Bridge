@@ -13,7 +13,9 @@ public class Apc40Mk2Driver : IControllerDriver
 {
     public const string Key = "Apc40Mk2";
 
-    private static readonly byte[] AbletonLiveModeSysEx = [0xF0, 0x47, 0x7F, 0x29, 0x60, 0x00, 0x04, 0x41, 0x00, 0x00, 0x00, 0xF7];
+    // Mode byte: 0x41 = Ableton Live mode, 0x42 = Alternate Ableton Live mode.
+    // Trying 0x42 to see if it changes how the encoder LED rings render (experiment).
+    private static readonly byte[] AbletonLiveModeSysEx = [0xF0, 0x47, 0x7F, 0x29, 0x60, 0x00, 0x04, 0x42, 0x00, 0x00, 0x00, 0xF7];
 
     private readonly List<ControlEntry> _entries;
     private readonly Dictionary<string, ControlEntry> _byControlId;
