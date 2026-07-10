@@ -1,5 +1,8 @@
 @inherits LayoutComponentBase
+@using System.Diagnostics
+@using Microsoft.Extensions.Hosting
 @using wledBridge.Web.Theme
+@inject IHostApplicationLifetime AppLifetime
 
 <MudThemeProvider Theme="DarkTheme.Theme" IsDarkMode="true" />
 <MudPopoverProvider />
@@ -9,6 +12,11 @@
 <MudLayout>
     <MudAppBar Elevation="0">
         <MudText Typo="Typo.h5">WLED MIDI Bridge</MudText>
+        <MudSpacer />
+        <MudMenu Icon="@Icons.Material.Filled.MoreVert" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+            <MudMenuItem OnClick="RestartApp">Neu starten</MudMenuItem>
+            <MudMenuItem OnClick="ExitApp">Beenden</MudMenuItem>
+        </MudMenu>
     </MudAppBar>
     <MudDrawer Open="true" Elevation="0" Variant="DrawerVariant.Persistent">
         <NavMenu />
@@ -25,3 +33,47 @@
     <a href="." class="reload">Reload</a>
     <span class="dismiss">🗙</span>
 </div>
+
+@code {
+    private void RestartApp()
+    {
+        var exePath = Environment.ProcessPath;
+
+        if (exePath is not null)
+        {
+            var args = Environment.GetCommandLineArgs();
+            var isDotnetHost = Path.GetFileNameWithoutExtension(exePath).Equals("dotnet", StringComparison.OrdinalIgnoreCase);
+
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = exePath,
+                UseShellExecute = false,
+                WorkingDirectory = Environment.CurrentDirectory
+            };
+
+            // When launched via "dotnet <dll>", args[0] is the dll path and must be passed
+            // back to dotnet.exe; when launched as a native apphost, args[0] is the exe path
+            // itself and must be dropped.
+            var startIndex = isDotnetHost ? 0 : 1;
+            for (var i = startIndex; i < args.Length; i++)
+            {
+                startInfo.ArgumentList.Add(args[i]);
+            }
+
+            Process.Start(startInfo);
+        }
+
+        ShutdownShortly();
+    }
+
+    private void ExitApp() => ShutdownShortly();
+
+    private void ShutdownShortly()
+    {
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(300);
+            AppLifetime.StopApplication();
+        });
+    }
+}
