@@ -137,7 +137,6 @@
 
 <MudPaper Class="pa-4 mb-4" Elevation="2">
     <MudText Typo="Typo.h6" Class="mb-2">Encoder LED-Ring testen</MudText>
-    <MudSwitch T="bool" @bind-Value="_useFillRingStyle" Label="Balken-Füllung statt Einzel-Position (experimentell)" Color="Color.Primary" Class="mb-2" />
     <MudGrid>
         @foreach (var controlId in EncoderControlIds)
         {
@@ -210,7 +209,6 @@
     private string? _selectedOutput;
     private string _deviceName = "";
     private string _selectedColorHex = "#01FF95";
-    private bool _useFillRingStyle = true;
 
     private List<ControllerDevice> _savedDevices = [];
     private ControllerDevice? _currentDevice;
@@ -365,8 +363,7 @@
     private void SetEncoderValue(string controlId, double value)
     {
         _encoderValues[controlId] = value;
-        var style = _useFillRingStyle ? EncoderRingStyle.Fill : EncoderRingStyle.Position;
-        SessionManager.Current?.Driver.SetLedRingValue(controlId, value, style);
+        SessionManager.Current?.Driver.SetLedRingValue(controlId, value);
     }
 
     private void ToggleButtonLed(string controlId, bool isOn)

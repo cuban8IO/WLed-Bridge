@@ -13,9 +13,11 @@ public class Apc40Mk2Driver : IControllerDriver
 {
     public const string Key = "Apc40Mk2";
 
-    // Mode byte: 0x41 = Ableton Live mode, 0x42 = Alternate Ableton Live mode.
-    // Trying 0x42 to see if it changes how the encoder LED rings render (experiment).
-    private static readonly byte[] AbletonLiveModeSysEx = [0xF0, 0x47, 0x7F, 0x29, 0x60, 0x00, 0x04, 0x42, 0x00, 0x00, 0x00, 0xF7];
+    // Mode byte: 0x41 = Ableton Live mode (confirmed working - pads, faders, buttons and
+    // encoder position feedback all work in this mode). 0x42 (Alternate Ableton Live mode)
+    // was tried to see if it changed encoder ring rendering, but it broke ring feedback
+    // entirely instead, so it's reverted.
+    private static readonly byte[] AbletonLiveModeSysEx = [0xF0, 0x47, 0x7F, 0x29, 0x60, 0x00, 0x04, 0x41, 0x00, 0x00, 0x00, 0xF7];
 
     private readonly List<ControlEntry> _entries;
     private readonly Dictionary<string, ControlEntry> _byControlId;
@@ -134,11 +136,10 @@ public class Apc40Mk2Driver : IControllerDriver
 
         var midiValue = (int)Math.Clamp(Math.Round(clamped * 127), 0, 127);
 
-        // The ring "fill" behavior is unconfirmed against real hardware: sending the position
-        // on channel+1 is a plausible-but-unverified convention for some Akai gear, offered
-        // here as an experiment rather than a confirmed protocol detail.
-        var channel = style == EncoderRingStyle.Fill ? entry.Channel + 1 : entry.Channel;
-        _output.Send(MidiMessage.ControlChange(channel, entry.DataNumber, midiValue));
+        // EncoderRingStyle.Fill is not achievable on this device via any confirmed protocol
+        // detail (channel+1 and the alternate intro mode were both tried against hardware and
+        // ruled out), so it currently falls back to the same single-LED position feedback.
+        _output.Send(MidiMessage.ControlChange(entry.Channel, entry.DataNumber, midiValue));
     }
 
     public void SetButtonLed(string controlId, bool isOn)
