@@ -145,6 +145,11 @@ public class Apc40Mk2Driver : IControllerDriver
                 _ => 1
             };
             _output.Send(MidiMessage.ControlChange(entry.Channel, ringTypeId, styleValue));
+
+            // A brief pause avoids a race where the ring-type and value messages arrive too
+            // close together for the device firmware to apply the new style reliably
+            // (observed most often when switching to Volume Style).
+            Thread.Sleep(5);
         }
 
         var midiValue = (int)Math.Clamp(Math.Round(clamped * 127), 0, 127);
