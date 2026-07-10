@@ -135,25 +135,45 @@ public class Apc40Mk2Driver : IControllerDriver
         var clamped = Math.Clamp(value, 0.0, 1.0);
         _encoderPositions[controlId] = clamped;
 
-        if (entry.RingTypeDataNumber is int ringTypeId)
-        {
-            // Ring Type: 0=off, 1=Single, 2=Volume Style (fill), 3=Pan Style, 4-127=Single.
-            var styleValue = style switch
-            {
-                EncoderRingStyle.Fill => 2,
-                EncoderRingStyle.Pan => 3,
-                _ => 1
-            };
-            _output.Send(MidiMessage.ControlChange(entry.Channel, ringTypeId, styleValue));
-
-            // A brief pause avoids a race where the ring-type and value messages arrive too
-            // close together for the device firmware to apply the new style reliably
-            // (observed most often when switching to Volume Style).
-            Thread.Sleep(5);
-        }
+        SendRingType(entry, style);
 
         var midiValue = (int)Math.Clamp(Math.Round(clamped * 127), 0, 127);
         _output.Send(MidiMessage.ControlChange(entry.Channel, entry.DataNumber, midiValue));
+    }
+
+    public void SetEncoderRingStyle(string controlId, EncoderRingStyle style)
+    {
+        if (_output is null || !_byControlId.TryGetValue(controlId, out var entry) || entry.Descriptor.Type != ControlType.Encoder)
+        {
+            return;
+        }
+
+        // Only reconfigures how the ring displays; the APC40 tracks and renders the actual
+        // encoder position on its own as the knob is turned (per the protocol's notes on
+        // Ableton Live Mode), so no value needs to be pushed here.
+        SendRingType(entry, style);
+    }
+
+    private void SendRingType(ControlEntry entry, EncoderRingStyle style)
+    {
+        if (_output is null || entry.RingTypeDataNumber is not int ringTypeId)
+        {
+            return;
+        }
+
+        // Ring Type: 0=off, 1=Single, 2=Volume Style (fill), 3=Pan Style, 4-127=Single.
+        var styleValue = style switch
+        {
+            EncoderRingStyle.Fill => 2,
+            EncoderRingStyle.Pan => 3,
+            _ => 1
+        };
+        _output.Send(MidiMessage.ControlChange(entry.Channel, ringTypeId, styleValue));
+
+        // A brief pause avoids a race where the ring-type and value messages arrive too
+        // close together for the device firmware to apply the new style reliably
+        // (observed most often when switching to Volume Style).
+        Thread.Sleep(5);
     }
 
     public void SetButtonLed(string controlId, bool isOn)

@@ -22,6 +22,8 @@ public interface IControllerDriver
 
     void SetLedRingValue(string controlId, double value, EncoderRingStyle style = EncoderRingStyle.Position);
 
+    void SetEncoderRingStyle(string controlId, EncoderRingStyle style);
+
     void SetButtonLed(string controlId, bool isOn);
 
     void Reset();
