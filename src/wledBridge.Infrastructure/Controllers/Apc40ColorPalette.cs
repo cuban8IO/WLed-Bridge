@@ -2,51 +2,42 @@ using wledBridge.Application.Abstractions.Controllers;
 
 namespace wledBridge.Infrastructure.Controllers;
 
+/// <remarks>
+/// Exact velocity-to-RGB table from the official Akai APC40 mkII Communications Protocol
+/// v1.2 (RGB LEDs table, pads/scene launch buttons on MIDI channel 0 = "Primary Color").
+/// </remarks>
 internal static class Apc40ColorPalette
 {
-    private static readonly Dictionary<byte, ControllerColor> VelocityToColor = new()
-    {
-        [0] = new ControllerColor(0, 0, 0),
-        [1] = new ControllerColor(255, 255, 255),
-        [2] = new ControllerColor(128, 128, 128),
-        [5] = new ControllerColor(255, 0, 0),
-        [6] = new ControllerColor(120, 0, 0),
-        [9] = new ControllerColor(255, 140, 0),
-        [10] = new ControllerColor(120, 70, 0),
-        [13] = new ControllerColor(255, 255, 0),
-        [14] = new ControllerColor(120, 120, 0),
-        [17] = new ControllerColor(140, 255, 0),
-        [18] = new ControllerColor(70, 120, 0),
-        [21] = new ControllerColor(0, 255, 0),
-        [22] = new ControllerColor(0, 120, 0),
-        [25] = new ControllerColor(0, 255, 140),
-        [26] = new ControllerColor(0, 120, 70),
-        [29] = new ControllerColor(0, 255, 255),
-        [30] = new ControllerColor(0, 120, 120),
-        [33] = new ControllerColor(0, 140, 255),
-        [34] = new ControllerColor(0, 70, 120),
-        [37] = new ControllerColor(0, 0, 255),
-        [38] = new ControllerColor(0, 0, 120),
-        [41] = new ControllerColor(140, 0, 255),
-        [42] = new ControllerColor(70, 0, 120),
-        [45] = new ControllerColor(255, 0, 255),
-        [46] = new ControllerColor(120, 0, 120),
-        [49] = new ControllerColor(255, 0, 140),
-        [50] = new ControllerColor(120, 0, 70),
-    };
+    private static readonly string[] HexByVelocity =
+    [
+        "000000", "1E1E1E", "7F7F7F", "FFFFFF", "FF4C4C", "FF0000", "590000", "190000",
+        "FFBD6C", "FF5400", "591D00", "271B00", "FFFF4C", "FFFF00", "595900", "191900",
+        "88FF4C", "54FF00", "1D5900", "142B00", "4CFF4C", "00FF00", "005900", "001900",
+        "4CFF5E", "00FF19", "00590D", "001902", "4CFF88", "00FF55", "00591D", "001F12",
+        "4CFFB7", "00FF99", "005935", "001912", "4CC3FF", "00A9FF", "004152", "001019",
+        "4C88FF", "0055FF", "001D59", "000819", "4C4CFF", "0000FF", "000059", "000019",
+        "874CFF", "5400FF", "190064", "0F0030", "FF4CFF", "FF00FF", "590059", "190019",
+        "FF4C87", "FF0054", "59001D", "220013", "FF1500", "993500", "795100", "436400",
+        "033900", "005735", "00547F", "0000FF", "00454F", "2500CC", "7F7F7F", "202020",
+        "FF0000", "BDFF2D", "AFED06", "64FF09", "108B00", "00FF87", "00A9FF", "002AFF",
+        "3F00FF", "7A00FF", "B21A7D", "402100", "FF4A00", "88E106", "72FF15", "00FF00",
+        "3BFF26", "59FF71", "38FFCC", "5B8AFF", "3151C6", "877FE9", "D31DFF", "FF005D",
+        "FF7F00", "B9B000", "90FF00", "835D07", "392B00", "144C10", "0D5038", "15152A",
+        "16205A", "693C1C", "A8000A", "DE513D", "D86A1C", "FFE126", "9EE12F", "67B50F",
+        "1E1E30", "DCFF6B", "80FFBD", "9A99FF", "8E66FF", "404040", "757575", "E0FFFF",
+        "A00000", "350000", "1AD000", "074200", "B9B000", "3F3100", "B35F00", "4B1502"
+    ];
+
+    private static readonly ControllerColor[] ColorByVelocity = [.. HexByVelocity.Select(ParseHex)];
 
     public static byte FindNearestVelocity(ControllerColor color)
     {
-        if (color is { R: 0, G: 0, B: 0 })
-        {
-            return 0;
-        }
-
-        var best = (byte)1;
+        var best = (byte)0;
         var bestDistance = double.MaxValue;
 
-        foreach (var (velocity, candidate) in VelocityToColor)
+        for (var velocity = 0; velocity < ColorByVelocity.Length; velocity++)
         {
+            var candidate = ColorByVelocity[velocity];
             var dr = candidate.R - color.R;
             var dg = candidate.G - color.G;
             var db = candidate.B - color.B;
@@ -55,10 +46,18 @@ internal static class Apc40ColorPalette
             if (distance < bestDistance)
             {
                 bestDistance = distance;
-                best = velocity;
+                best = (byte)velocity;
             }
         }
 
         return best;
+    }
+
+    private static ControllerColor ParseHex(string hex)
+    {
+        var r = Convert.ToByte(hex[..2], 16);
+        var g = Convert.ToByte(hex[2..4], 16);
+        var b = Convert.ToByte(hex[4..6], 16);
+        return new ControllerColor(r, g, b);
     }
 }
