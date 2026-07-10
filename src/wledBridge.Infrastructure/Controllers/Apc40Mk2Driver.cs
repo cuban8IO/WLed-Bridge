@@ -77,10 +77,19 @@ public class Apc40Mk2Driver : IControllerDriver
         }
 
         var descriptor = entry.Descriptor;
-        var value = message.Data2 / 127.0;
-        bool? isOn = descriptor.Type is ControlType.Pad or ControlType.Button
-            ? message.CommandCode == 0x90 && message.Data2 > 0
-            : null;
+
+        bool? isOn = null;
+        double value;
+
+        if (descriptor.Type is ControlType.Pad or ControlType.Button)
+        {
+            isOn = message.CommandCode == 0x90 && message.Data2 > 0;
+            value = isOn.Value ? 1.0 : 0.0;
+        }
+        else
+        {
+            value = message.Data2 / 127.0;
+        }
 
         ControlChanged?.Invoke(this, new ControlValueChangedEventArgs(descriptor.ControlId, descriptor.Type, value, isOn));
     }
