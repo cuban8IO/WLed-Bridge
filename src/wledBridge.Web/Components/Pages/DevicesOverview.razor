@@ -1,0 +1,260 @@
+@page "/devices/overview"
+@using System.Text.Json
+@using System.Text.Json.Serialization
+@using Microsoft.EntityFrameworkCore
+@using wledBridge.Application.Abstractions.Controllers
+@using wledBridge.Application.Abstractions.Persistence
+@using wledBridge.Domain.Controllers
+@using wledBridge.Web.Devices
+@inject IApplicationDbContext Db
+@inject IControllerDriverFactory DriverFactory
+@inject IJSRuntime JS
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject NavigationManager Navigation
+
+<PageTitle>Geräte-Übersicht</PageTitle>
+
+<MudText Typo="Typo.h3" GutterBottom="true">Geräte-Übersicht</MudText>
+<MudText Typo="Typo.body1" Class="mb-4">
+    Alle gespeicherten Geräte und fest einprogrammierten Vorlagen an einem Ort. Konfigurationen lassen
+    sich als JSON exportieren und auf einem anderen Rechner wieder importieren.
+</MudText>
+
+<MudPaper Class="pa-4 mb-4" Elevation="2">
+    <MudText Typo="Typo.h6" Class="mb-2">Konfiguration importieren</MudText>
+    <InputFile OnChange="HandleImport" accept=".json" />
+</MudPaper>
+
+<MudPaper Class="pa-4" Elevation="2">
+    <MudTable Items="_rows" Dense="true" Hover="true">
+        <HeaderContent>
+            <MudTh>Name</MudTh>
+            <MudTh>Treiber</MudTh>
+            <MudTh>Controls</MudTh>
+            <MudTh>MIDI</MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>
+                @context.Name
+                @if (context.IsTemplate)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Info" Class="ml-2">Vorlage</MudChip>
+                }
+            </MudTd>
+            <MudTd>@context.DriverDisplayName</MudTd>
+            <MudTd>@context.ControlCount</MudTd>
+            <MudTd>@(context.MidiInputDeviceName is null ? "-" : $"{context.MidiInputDeviceName} / {context.MidiOutputDeviceName}")</MudTd>
+            <MudTd>
+                <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                    <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="@(() => Export(context))">Export</MudButton>
+                    @if (context.IsTemplate)
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="@(() => Navigation.NavigateTo("devices/from-template"))">Neues Device daraus erstellen</MudButton>
+                    }
+                    else
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="@(() => Navigation.NavigateTo("devices/test"))">Testen</MudButton>
+                        @if (context.DriverKey == GenericDriverConstants.DriverKey)
+                        {
+                            <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="@(() => Navigation.NavigateTo($"devices?editDeviceId={context.DeviceId}"))">Bearbeiten</MudButton>
+                        }
+                        <MudTooltip Text="Löschen">
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => DeleteDevice(context))" />
+                        </MudTooltip>
+                    }
+                </MudStack>
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+</MudPaper>
+
+@code {
+    private static readonly JsonSerializerOptions ExportJsonOptions = new()
+    {
+        WriteIndented = true,
+        Converters = { new JsonStringEnumConverter() }
+    };
+
+    private List<OverviewRow> _rows = [];
+
+    protected override async Task OnInitializedAsync() => await LoadRows();
+
+    private async Task LoadRows()
+    {
+        var rows = new List<OverviewRow>();
+
+        foreach (var driverKey in DriverFactory.AvailableDriverKeys)
+        {
+            var driver = DriverFactory.Create(driverKey);
+            rows.Add(new OverviewRow
+            {
+                IsTemplate = true,
+                Name = driver.DisplayName,
+                DriverKey = driverKey,
+                DriverDisplayName = driver.DisplayName,
+                ControlCount = driver.ExportControlDefinitions().Count
+            });
+        }
+
+        var devices = await Db.ControllerDevices.ToListAsync();
+
+        foreach (var device in devices)
+        {
+            var controlCount = device.DriverKey == GenericDriverConstants.DriverKey
+                ? await Db.ControllerControlDefinitions.CountAsync(d => d.ControllerDeviceId == device.Id)
+                : DriverFactory.Create(device.DriverKey).ExportControlDefinitions().Count;
+
+            rows.Add(new OverviewRow
+            {
+                IsTemplate = false,
+                DeviceId = device.Id,
+                Name = device.Name,
+                DriverKey = device.DriverKey,
+                DriverDisplayName = GetDriverDisplayName(device.DriverKey),
+                ControlCount = controlCount,
+                MidiInputDeviceName = device.MidiInputDeviceName,
+                MidiOutputDeviceName = device.MidiOutputDeviceName
+            });
+        }
+
+        _rows = rows;
+    }
+
+    private string GetDriverDisplayName(string driverKey) =>
+        driverKey == GenericDriverConstants.DriverKey ? "Generisch (angelernt)" : DriverFactory.Create(driverKey).DisplayName;
+
+    private async Task<ControllerConfigurationExport> BuildExport(OverviewRow row)
+    {
+        IReadOnlyList<GenericControlDefinition> controls;
+
+        if (row.IsTemplate || row.DriverKey != GenericDriverConstants.DriverKey)
+        {
+            controls = DriverFactory.Create(row.DriverKey).ExportControlDefinitions();
+        }
+        else
+        {
+            var definitions = await Db.ControllerControlDefinitions.Where(d => d.ControllerDeviceId == row.DeviceId).ToListAsync();
+            controls = [.. definitions.Select(d => new GenericControlDefinition(d.Id.ToString(), d.Name, d.Type, d.LedCapability, d.IsRelative, d.Channel, d.CommandCode, d.DataNumber))];
+        }
+
+        return new ControllerConfigurationExport
+        {
+            Name = row.Name,
+            DriverKey = row.DriverKey,
+            IsTemplate = row.IsTemplate,
+            MidiInputDeviceName = row.IsTemplate ? null : row.MidiInputDeviceName,
+            MidiOutputDeviceName = row.IsTemplate ? null : row.MidiOutputDeviceName,
+            Controls = [.. controls.Select(c => new ControlDefinitionExport
+            {
+                Name = c.Label,
+                Type = c.Type,
+                LedCapability = c.LedCapability,
+                IsRelative = c.IsRelative,
+                Channel = c.Channel,
+                CommandCode = c.CommandCode,
+                DataNumber = c.DataNumber
+            })]
+        };
+    }
+
+    private async Task Export(OverviewRow row)
+    {
+        var export = await BuildExport(row);
+        var json = JsonSerializer.Serialize(export, ExportJsonOptions);
+        var fileName = $"{SanitizeFileName(row.Name)}.json";
+        await JS.InvokeVoidAsync("downloadFileFromText", fileName, "application/json", json);
+        Snackbar.Add($"'{row.Name}' exportiert", Severity.Success);
+    }
+
+    private static string SanitizeFileName(string name)
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        return new string([.. name.Select(c => invalid.Contains(c) ? '_' : c)]);
+    }
+
+    private async Task HandleImport(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            using var stream = e.File.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024);
+            var import = await JsonSerializer.DeserializeAsync<ControllerConfigurationExport>(stream, ExportJsonOptions);
+
+            if (import is null || string.IsNullOrWhiteSpace(import.Name) || import.Controls.Count == 0)
+            {
+                Snackbar.Add("Ungültige Konfigurationsdatei", Severity.Error);
+                return;
+            }
+
+            var device = new ControllerDevice
+            {
+                Name = import.Name,
+                DriverKey = GenericDriverConstants.DriverKey,
+                MidiInputDeviceName = null,
+                MidiOutputDeviceName = null
+            };
+
+            foreach (var control in import.Controls)
+            {
+                device.ControlDefinitions.Add(new ControllerControlDefinition
+                {
+                    ControllerDeviceId = device.Id,
+                    Name = control.Name,
+                    Type = control.Type,
+                    LedCapability = control.LedCapability,
+                    IsRelative = control.IsRelative,
+                    Channel = control.Channel,
+                    CommandCode = control.CommandCode,
+                    DataNumber = control.DataNumber
+                });
+            }
+
+            Db.ControllerDevices.Add(device);
+            await Db.SaveChangesAsync();
+            await LoadRows();
+            Snackbar.Add($"'{device.Name}' importiert - bitte MIDI-Ports beim Bearbeiten neu auswählen", Severity.Success);
+        }
+        catch (JsonException)
+        {
+            Snackbar.Add("Datei konnte nicht gelesen werden - kein gültiges JSON", Severity.Error);
+        }
+    }
+
+    private async Task DeleteDevice(OverviewRow row)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Device löschen",
+            $"'{row.Name}' wirklich löschen? Das entfernt auch alle gelernten Controls dieses Geräts unwiderruflich.",
+            yesText: "Löschen",
+            cancelText: "Abbrechen");
+
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        var device = await Db.ControllerDevices.FindAsync(row.DeviceId);
+        if (device is null)
+        {
+            return;
+        }
+
+        Db.ControllerDevices.Remove(device);
+        await Db.SaveChangesAsync();
+        await LoadRows();
+        Snackbar.Add($"'{row.Name}' gelöscht", Severity.Success);
+    }
+
+    private sealed class OverviewRow
+    {
+        public bool IsTemplate { get; set; }
+        public Guid? DeviceId { get; set; }
+        public required string Name { get; set; }
+        public required string DriverKey { get; set; }
+        public required string DriverDisplayName { get; set; }
+        public int ControlCount { get; set; }
+        public string? MidiInputDeviceName { get; set; }
+        public string? MidiOutputDeviceName { get; set; }
+    }
+}
