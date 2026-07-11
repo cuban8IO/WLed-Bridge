@@ -16,5 +16,7 @@ public interface IApplicationDbContext
 
     DbSet<ControlMapping> ControlMappings { get; }
 
+    DbSet<ControllerControlDefinition> ControllerControlDefinitions { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

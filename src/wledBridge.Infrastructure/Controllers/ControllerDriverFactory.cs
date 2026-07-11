@@ -15,4 +15,7 @@ public class ControllerDriverFactory : IControllerDriverFactory
         Drivers.TryGetValue(driverKey, out var factory)
             ? factory()
             : throw new InvalidOperationException($"No controller driver registered for key '{driverKey}'.");
+
+    public IControllerDriver CreateGeneric(string displayName, IReadOnlyList<GenericControlDefinition> controls) =>
+        new GenericMidiControllerDriver(displayName, controls);
 }

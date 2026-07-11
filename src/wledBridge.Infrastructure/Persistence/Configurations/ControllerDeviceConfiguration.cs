@@ -25,5 +25,10 @@ public class ControllerDeviceConfiguration : IEntityTypeConfiguration<Controller
 
         builder.Property(x => x.MidiOutputDeviceName)
             .HasMaxLength(200);
+
+        builder.HasMany(x => x.ControlDefinitions)
+            .WithOne()
+            .HasForeignKey(x => x.ControllerDeviceId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

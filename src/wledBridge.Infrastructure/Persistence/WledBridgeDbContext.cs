@@ -17,6 +17,8 @@ public class WledBridgeDbContext(DbContextOptions<WledBridgeDbContext> options) 
 
     public DbSet<ControlMapping> ControlMappings => Set<ControlMapping>();
 
+    public DbSet<ControllerControlDefinition> ControllerControlDefinitions => Set<ControllerControlDefinition>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(WledBridgeDbContext).Assembly);

@@ -54,7 +54,7 @@
         @if (IsConnected)
         {
             <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="Disconnect">Trennen</MudButton>
-            <MudButton Variant="Variant.Outlined" OnClick="ResetDevice">APC zurücksetzen</MudButton>
+            <MudButton Variant="Variant.Outlined" OnClick="ResetDevice">Gerät zurücksetzen</MudButton>
             <MudText Color="Color.Success">Verbunden: @SessionManager.Current!.Driver.DisplayName</MudText>
         }
         else
@@ -64,7 +64,7 @@
     </MudStack>
     <MudStack Row="true" Class="mt-3" Spacing="2" AlignItems="AlignItems.Center">
         <MudTextField T="string" Label="Gerätename" @bind-Value="_deviceName" Style="max-width: 260px;" />
-        <MudButton Variant="Variant.Outlined" OnClick="SaveDevice" Disabled="@(_selectedDriverKey is null)">Als Gerät speichern</MudButton>
+        <MudButton Variant="Variant.Outlined" OnClick="SaveDevice" Disabled="@(_selectedDriverKey is null || _selectedDriverKey == GenericDriverConstants.DriverKey)">Als Gerät speichern</MudButton>
     </MudStack>
     @if (_savedDevices.Count > 0)
     {
@@ -119,33 +119,19 @@
         <MudColorPicker @bind-Text="_selectedColorHex" Palette="_colorPalette" Label="Farbe" Style="max-width: 260px;" />
         <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="ClearAllPadColors">Alle löschen</MudButton>
     </MudStack>
-    <div style="display: grid; grid-template-columns: repeat(8, 40px); gap: 4px;">
-        @for (var row = 4; row >= 0; row--)
+    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+        @foreach (var descriptor in PadControlDescriptors)
         {
-            for (var col = 0; col < 8; col++)
-            {
-                var controlId = $"pad-{col}-{row}";
+            var controlId = descriptor.ControlId;
+            <div style="text-align:center;">
                 <div @onclick="@(() => ApplyPadColor(controlId))"
                      style="@GetPadStyle(controlId)"
-                     title="@controlId">
+                     title="@($"{controlId} ({descriptor.Label})")">
                     <span @onclick="@(() => ClearPadColor(controlId))"
                           @onclick:stopPropagation="true"
                           style="position:absolute;top:-6px;right:-4px;width:14px;height:14px;line-height:14px;font-size:11px;text-align:center;border-radius:50%;background:#333;color:#fff;cursor:pointer;">&times;</span>
                 </div>
-            }
-        }
-    </div>
-    <MudText Typo="Typo.body2" Class="mt-3 mb-1">Scene Launch</MudText>
-    <div style="display: grid; grid-template-columns: repeat(5, 40px); gap: 4px;">
-        @for (var scene = 0; scene < 5; scene++)
-        {
-            var controlId = $"scene-{scene}";
-            <div @onclick="@(() => ApplyPadColor(controlId))"
-                 style="@GetPadStyle(controlId)"
-                 title="@controlId">
-                <span @onclick="@(() => ClearPadColor(controlId))"
-                      @onclick:stopPropagation="true"
-                      style="position:absolute;top:-6px;right:-4px;width:14px;height:14px;line-height:14px;font-size:11px;text-align:center;border-radius:50%;background:#333;color:#fff;cursor:pointer;">&times;</span>
+                <MudText Typo="Typo.caption">@descriptor.Label</MudText>
             </div>
         }
     </div>
@@ -265,6 +251,9 @@
 
     private IEnumerable<string> ButtonControlIds =>
         SessionManager.Current?.Driver.ControlLayout.Where(c => c.Type == ControlType.Button).Select(c => c.ControlId) ?? [];
+
+    private IEnumerable<ControlDescriptor> PadControlDescriptors =>
+        SessionManager.Current?.Driver.ControlLayout.Where(c => c.Type == ControlType.Pad) ?? [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -435,17 +424,9 @@
 
     private void ClearAllPadColors()
     {
-        for (var col = 0; col < 8; col++)
+        foreach (var descriptor in PadControlDescriptors.ToList())
         {
-            for (var row = 0; row < 5; row++)
-            {
-                ClearPadColor($"pad-{col}-{row}");
-            }
-        }
-
-        for (var scene = 0; scene < 5; scene++)
-        {
-            ClearPadColor($"scene-{scene}");
+            ClearPadColor(descriptor.ControlId);
         }
     }
 
@@ -496,13 +477,35 @@
         _savedDevices = await Db.ControllerDevices.ToListAsync();
     }
 
-    private void LoadDevice(ControllerDevice device)
+    private async Task LoadDevice(ControllerDevice device)
     {
         _currentDevice = device;
         _selectedDriverKey = device.DriverKey;
         _selectedInput = device.MidiInputDeviceName;
         _selectedOutput = device.MidiOutputDeviceName;
-        Connect();
+
+        if (device.DriverKey != GenericDriverConstants.DriverKey)
+        {
+            Connect();
+            return;
+        }
+
+        if (_selectedInput is null || _selectedOutput is null)
+        {
+            return;
+        }
+
+        var definitions = await Db.ControllerControlDefinitions
+            .Where(d => d.ControllerDeviceId == device.Id)
+            .ToListAsync();
+
+        var controls = definitions
+            .Select(d => new GenericControlDefinition(d.Id.ToString(), d.Name, d.Type, d.LedCapability, d.IsRelative, d.Channel, d.CommandCode, d.DataNumber))
+            .ToList();
+
+        var session = SessionManager.ConnectGeneric(device.Name, controls, _selectedInput, _selectedOutput);
+        AttachToSession(session);
+        SyncStateAfterDeviceReset();
     }
 
     private async Task CreateVirtualMixer()

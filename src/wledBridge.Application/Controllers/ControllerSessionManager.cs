@@ -9,11 +9,16 @@ public class ControllerSessionManager(IControllerDriverFactory driverFactory, IM
 
     public event EventHandler? SessionChanged;
 
-    public ControllerSession Connect(string driverKey, string inputDeviceName, string outputDeviceName)
+    public ControllerSession Connect(string driverKey, string inputDeviceName, string outputDeviceName) =>
+        ConnectWithDriver(driverFactory.Create(driverKey), inputDeviceName, outputDeviceName);
+
+    public ControllerSession ConnectGeneric(string displayName, IReadOnlyList<GenericControlDefinition> controls, string inputDeviceName, string outputDeviceName) =>
+        ConnectWithDriver(driverFactory.CreateGeneric(displayName, controls), inputDeviceName, outputDeviceName);
+
+    private ControllerSession ConnectWithDriver(IControllerDriver driver, string inputDeviceName, string outputDeviceName)
     {
         Disconnect();
 
-        var driver = driverFactory.Create(driverKey);
         var input = portFactory.OpenInput(inputDeviceName);
         var output = portFactory.OpenOutput(outputDeviceName);
 

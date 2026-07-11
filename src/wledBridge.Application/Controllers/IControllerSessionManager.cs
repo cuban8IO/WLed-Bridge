@@ -1,3 +1,5 @@
+using wledBridge.Application.Abstractions.Controllers;
+
 namespace wledBridge.Application.Controllers;
 
 public interface IControllerSessionManager
@@ -7,6 +9,8 @@ public interface IControllerSessionManager
     event EventHandler? SessionChanged;
 
     ControllerSession Connect(string driverKey, string inputDeviceName, string outputDeviceName);
+
+    ControllerSession ConnectGeneric(string displayName, IReadOnlyList<GenericControlDefinition> controls, string inputDeviceName, string outputDeviceName);
 
     void Disconnect();
 }
