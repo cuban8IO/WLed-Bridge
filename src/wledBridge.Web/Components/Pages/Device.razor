@@ -8,6 +8,7 @@
 @using wledBridge.Domain.Controllers
 @inject IMidiPortFactory PortFactory
 @inject IApplicationDbContext Db
+@inject ISnackbar Snackbar
 
 <PageTitle>Device</PageTitle>
 
@@ -49,7 +50,7 @@
     <MudStack Row="true" Class="mt-3" Spacing="2" AlignItems="AlignItems.Center">
         @if (IsConnected)
         {
-            <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="Disconnect">Trennen</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="@(() => { Disconnect(); Snackbar.Add("Getrennt", Severity.Normal); })">Trennen</MudButton>
             <MudText Color="Color.Success">Verbunden</MudText>
         }
         else
@@ -308,6 +309,7 @@
         _input = PortFactory.OpenInput(_selectedInput);
         _output = PortFactory.OpenOutput(_selectedOutput);
         _input.MessageReceived += OnMessageReceived;
+        Snackbar.Add($"Verbunden: {_selectedInput} / {_selectedOutput}", Severity.Success);
     }
 
     private void Disconnect()
@@ -476,6 +478,7 @@
 
             await Db.SaveChangesAsync();
             _savedDeviceId = editId;
+            Snackbar.Add("Änderungen gespeichert", Severity.Success);
             return;
         }
 
@@ -506,6 +509,7 @@
         await Db.SaveChangesAsync();
 
         _savedDeviceId = device.Id;
+        Snackbar.Add($"Gerät '{device.Name}' gespeichert", Severity.Success);
     }
 
     public void Dispose() => Disconnect();

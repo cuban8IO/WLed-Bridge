@@ -7,6 +7,7 @@
 @inject IControllerDriverFactory DriverFactory
 @inject IMidiPortFactory PortFactory
 @inject IApplicationDbContext Db
+@inject ISnackbar Snackbar
 
 <PageTitle>Aus Vorlage erstellen</PageTitle>
 
@@ -117,5 +118,6 @@
         await Db.SaveChangesAsync();
 
         _savedDeviceId = device.Id;
+        Snackbar.Add($"Gerät '{device.Name}' aus Vorlage gespeichert", Severity.Success);
     }
 }

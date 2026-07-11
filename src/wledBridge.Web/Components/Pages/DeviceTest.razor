@@ -13,6 +13,7 @@
 @inject IApplicationDbContext Db
 @inject NavigationManager Navigation
 @inject IDialogService DialogService
+@inject ISnackbar Snackbar
 
 <PageTitle>Device Test</PageTitle>
 
@@ -168,7 +169,7 @@
     }
 </MudPaper>
 
-<MudPaper Class="pa-4 mb-4" Elevation="2">
+<MudPaper Class="pa-4 pb-6 mb-4" Elevation="2">
     <MudText Typo="Typo.h6" Class="mb-2">Encoder LED-Ring testen</MudText>
     <MudSelect T="EncoderRingStyle" Value="_ringStyle" ValueChanged="OnRingStyleChanged" Label="Ring-Stil (gilt für Hardware-Drehung und Slider)" Style="max-width: 340px;" Class="mb-2">
         <MudSelectItem T="EncoderRingStyle" Value="EncoderRingStyle.Position">Einzel-Position</MudSelectItem>
@@ -186,7 +187,7 @@
     </MudGrid>
 </MudPaper>
 
-<MudPaper Class="pa-4 mb-4" Elevation="2">
+<MudPaper Class="pa-4 pb-6 mb-4" Elevation="2">
     <MudText Typo="Typo.h6" Class="mb-2">Button-LEDs testen</MudText>
     <MudGrid>
         @foreach (var controlId in ButtonControlIds)
@@ -345,14 +346,20 @@
         // style again (that previously left Volume/Pan style showing nothing at value 0,
         // while a manual reset showed the first LED - now both end up identical).
         SyncStateAfterDeviceReset();
+        Snackbar.Add($"Verbunden: {session.Driver.DisplayName}", Severity.Success);
     }
 
-    private void Disconnect() => SessionManager.Disconnect();
+    private void Disconnect()
+    {
+        SessionManager.Disconnect();
+        Snackbar.Add("Getrennt", Severity.Normal);
+    }
 
     private void ResetDevice()
     {
         SessionManager.Current?.Driver.Reset();
         SyncStateAfterDeviceReset();
+        Snackbar.Add("Gerät zurückgesetzt", Severity.Success);
     }
 
     private void SyncStateAfterDeviceReset()
@@ -536,6 +543,7 @@
         await Db.SaveChangesAsync();
         _currentDevice = device;
         _savedDevices = await Db.ControllerDevices.ToListAsync();
+        Snackbar.Add($"Gerät '{device.Name}' gespeichert", Severity.Success);
     }
 
     private async Task LoadDevice(ControllerDevice device)
@@ -567,6 +575,7 @@
         var session = SessionManager.ConnectGeneric(device.Name, controls, _selectedInput, _selectedOutput);
         AttachToSession(session);
         SyncStateAfterDeviceReset();
+        Snackbar.Add($"Verbunden: {session.Driver.DisplayName}", Severity.Success);
     }
 
     private void StartRename(ControllerDevice device)
@@ -585,6 +594,7 @@
         device.Name = _renameText;
         await Db.SaveChangesAsync();
         _renamingDeviceId = null;
+        Snackbar.Add("Umbenannt", Severity.Success);
     }
 
     private async Task DeleteDevice(ControllerDevice device)
@@ -609,6 +619,7 @@
         Db.ControllerDevices.Remove(device);
         await Db.SaveChangesAsync();
         _savedDevices.Remove(device);
+        Snackbar.Add($"'{device.Name}' gelöscht", Severity.Success);
     }
 
     private async Task CreateVirtualMixer()
@@ -641,6 +652,7 @@
 
         _mixer = mixer;
         _mappings = await Db.ControlMappings.Where(m => m.ControllerDeviceId == _currentDevice!.Id).ToListAsync();
+        Snackbar.Add($"Mixer '{mixer.Name}' erstellt", Severity.Success);
     }
 
     private Guid? GetMappedVirtualControlId(string physicalControlId) =>
