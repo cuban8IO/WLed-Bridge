@@ -6,6 +6,7 @@
 @using wledBridge.Application.Abstractions.Persistence
 @using wledBridge.Application.Controllers
 @using wledBridge.Domain.Controllers
+@using MudBlazor.Utilities
 @inject IControllerSessionManager SessionManager
 @inject IMidiPortFactory PortFactory
 @inject IControllerDriverFactory DriverFactory
@@ -115,7 +116,7 @@
 <MudPaper Class="pa-4 mb-4" Elevation="2">
     <MudText Typo="Typo.h6" Class="mb-2">Pad-Farben testen</MudText>
     <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-2">
-        <MudColorPicker @bind-Text="_selectedColorHex" Label="Farbe" Style="max-width: 260px;" />
+        <MudColorPicker @bind-Text="_selectedColorHex" Palette="_colorPalette" Label="Farbe" Style="max-width: 260px;" />
         <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="ClearAllPadColors">Alle löschen</MudButton>
     </MudStack>
     <div style="display: grid; grid-template-columns: repeat(8, 40px); gap: 4px;">
@@ -132,6 +133,20 @@
                           style="position:absolute;top:-6px;right:-4px;width:14px;height:14px;line-height:14px;font-size:11px;text-align:center;border-radius:50%;background:#333;color:#fff;cursor:pointer;">&times;</span>
                 </div>
             }
+        }
+    </div>
+    <MudText Typo="Typo.body2" Class="mt-3 mb-1">Scene Launch</MudText>
+    <div style="display: grid; grid-template-columns: repeat(5, 40px); gap: 4px;">
+        @for (var scene = 0; scene < 5; scene++)
+        {
+            var controlId = $"scene-{scene}";
+            <div @onclick="@(() => ApplyPadColor(controlId))"
+                 style="@GetPadStyle(controlId)"
+                 title="@controlId">
+                <span @onclick="@(() => ClearPadColor(controlId))"
+                      @onclick:stopPropagation="true"
+                      style="position:absolute;top:-6px;right:-4px;width:14px;height:14px;line-height:14px;font-size:11px;text-align:center;border-radius:50%;background:#333;color:#fff;cursor:pointer;">&times;</span>
+            </div>
         }
     </div>
 </MudPaper>
@@ -216,6 +231,21 @@
     private string _deviceName = "";
     private string _selectedColorHex = "#01FF95";
     private EncoderRingStyle _ringStyle = EncoderRingStyle.Fill;
+
+    private readonly List<MudColor> _colorPalette =
+    [
+        new("#01FF95"),
+        new("#FFFFFF"),
+        new("#FF0000"),
+        new("#FF7F00"),
+        new("#FFFF00"),
+        new("#00FF00"),
+        new("#00FFFF"),
+        new("#0000FF"),
+        new("#8B00FF"),
+        new("#FF00FF"),
+        new("#000000")
+    ];
 
     private List<ControllerDevice> _savedDevices = [];
     private ControllerDevice? _currentDevice;
@@ -411,6 +441,11 @@
             {
                 ClearPadColor($"pad-{col}-{row}");
             }
+        }
+
+        for (var scene = 0; scene < 5; scene++)
+        {
+            ClearPadColor($"scene-{scene}");
         }
     }
 

@@ -252,7 +252,7 @@ public class Apc40Mk2Driver : IControllerDriver
 
         for (var scene = 0; scene < 5; scene++)
         {
-            entries.Add(new ControlEntry(new ControlDescriptor($"scene-{scene}", ControlType.Button, $"Scene Launch {scene + 1}", null, null, true, false), 0, 0x52 + scene));
+            entries.Add(new ControlEntry(new ControlDescriptor($"scene-{scene}", ControlType.Pad, $"Scene Launch {scene + 1}", null, null, true, false), 0, 0x52 + scene));
         }
 
         entries.Add(new ControlEntry(new ControlDescriptor("track-select-master", ControlType.Button, "Master", null, null, false, true), 0, 0x50));
