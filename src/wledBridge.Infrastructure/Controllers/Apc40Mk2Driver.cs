@@ -54,6 +54,21 @@ public class Apc40Mk2Driver : IControllerDriver
 
     public event EventHandler<ControlValueChangedEventArgs>? ControlChanged;
 
+    public IReadOnlyList<GenericControlDefinition> ExportControlDefinitions() =>
+        [.. _entries.Select(e => new GenericControlDefinition(
+            e.Descriptor.ControlId,
+            e.Descriptor.Label,
+            e.Descriptor.Type,
+            e.Descriptor.SupportsColor
+                ? LedCapability.Rgb
+                : e.Descriptor.SupportsLedFeedback
+                    ? (e.Descriptor.Type == ControlType.Encoder ? LedCapability.Bar : LedCapability.Single)
+                    : LedCapability.None,
+            RelativeEncoderIds.Contains(e.Descriptor.ControlId),
+            e.Channel,
+            e.Descriptor.Type is ControlType.Pad or ControlType.Button ? 0x90 : 0xB0,
+            e.DataNumber))];
+
     public void Attach(IMidiOutputPort output)
     {
         _output = output;

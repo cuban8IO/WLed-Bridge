@@ -1,5 +1,8 @@
 <MudNavMenu>
     <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">Home</MudNavLink>
-    <MudNavLink Href="devices" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.School">Device</MudNavLink>
-    <MudNavLink Href="devices/test" Icon="@Icons.Material.Filled.Piano">Device Test</MudNavLink>
+    <MudNavGroup Title="Devices" Icon="@Icons.Material.Filled.Devices" Expanded="true">
+        <MudNavLink Href="devices" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.School">Neues Device</MudNavLink>
+        <MudNavLink Href="devices/from-template" Icon="@Icons.Material.Filled.ContentCopy">Aus Vorlage erstellen</MudNavLink>
+        <MudNavLink Href="devices/test" Icon="@Icons.Material.Filled.Piano">Device Test</MudNavLink>
+    </MudNavGroup>
 </MudNavMenu>

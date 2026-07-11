@@ -1,0 +1,121 @@
+@page "/devices/from-template"
+@using Microsoft.EntityFrameworkCore
+@using wledBridge.Application.Abstractions.Controllers
+@using wledBridge.Application.Abstractions.Midi
+@using wledBridge.Application.Abstractions.Persistence
+@using wledBridge.Domain.Controllers
+@inject IControllerDriverFactory DriverFactory
+@inject IMidiPortFactory PortFactory
+@inject IApplicationDbContext Db
+
+<PageTitle>Aus Vorlage erstellen</PageTitle>
+
+<MudText Typo="Typo.h3" GutterBottom="true">Aus Vorlage erstellen</MudText>
+<MudText Typo="Typo.body1" Class="mb-4">
+    Übernimmt die fest einprogrammierte Steuerungsvorlage eines bekannten Controllers (z.B. APC40 mkII) als
+    neues, bearbeitbares Gerät - anschließend auf der <MudLink Href="devices/test">Device-Test-Seite</MudLink>
+    testen oder unter "Bearbeiten" Befehle hinzufügen/entfernen.
+</MudText>
+
+<MudPaper Class="pa-4" Elevation="2">
+    <MudGrid>
+        <MudItem xs="12" sm="4">
+            <MudSelect T="string" Label="Vorlage" @bind-Value="_selectedTemplateKey">
+                @foreach (var key in _templateKeys)
+                {
+                    <MudSelectItem T="string" Value="@key">@GetDisplayName(key)</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="4">
+            <MudSelect T="string" Label="MIDI Eingang" @bind-Value="_selectedInput">
+                @foreach (var name in _inputDevices)
+                {
+                    <MudSelectItem T="string" Value="@name">@name</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="4">
+            <MudSelect T="string" Label="MIDI Ausgang" @bind-Value="_selectedOutput">
+                @foreach (var name in _outputDevices)
+                {
+                    <MudSelectItem T="string" Value="@name">@name</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+    </MudGrid>
+    <MudStack Row="true" Class="mt-3" Spacing="2" AlignItems="AlignItems.Center">
+        <MudTextField T="string" Label="Gerätename" @bind-Value="_deviceName" Style="max-width: 260px;" />
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateFromTemplate" Disabled="@(_selectedTemplateKey is null || string.IsNullOrWhiteSpace(_deviceName))">Als neues Device speichern</MudButton>
+    </MudStack>
+    @if (_savedDeviceId is not null)
+    {
+        <MudText Color="Color.Success" Class="mt-2">
+            Gespeichert. Jetzt auf der <MudLink Href="devices/test">Device-Test-Seite</MudLink> laden &amp; testen,
+            oder <MudLink Href="@($"devices?editDeviceId={_savedDeviceId}")">hier bearbeiten</MudLink>.
+        </MudText>
+    }
+</MudPaper>
+
+@code {
+    private IReadOnlyList<string> _templateKeys = [];
+    private IReadOnlyList<string> _inputDevices = [];
+    private IReadOnlyList<string> _outputDevices = [];
+    private string? _selectedTemplateKey;
+    private string? _selectedInput;
+    private string? _selectedOutput;
+    private string _deviceName = "";
+    private Guid? _savedDeviceId;
+
+    protected override void OnInitialized()
+    {
+        _templateKeys = DriverFactory.AvailableDriverKeys;
+        _inputDevices = PortFactory.GetInputDeviceNames();
+        _outputDevices = PortFactory.GetOutputDeviceNames();
+        _selectedTemplateKey = _templateKeys.FirstOrDefault();
+        _selectedInput = _inputDevices.FirstOrDefault(d => d.Contains("APC", StringComparison.OrdinalIgnoreCase)) ?? _inputDevices.FirstOrDefault();
+        _selectedOutput = _outputDevices.FirstOrDefault(d => d.Contains("APC", StringComparison.OrdinalIgnoreCase)) ?? _outputDevices.FirstOrDefault();
+        _deviceName = _selectedTemplateKey is null ? "" : $"{GetDisplayName(_selectedTemplateKey)} Kopie";
+    }
+
+    private string GetDisplayName(string driverKey) => DriverFactory.Create(driverKey).DisplayName;
+
+    private async Task CreateFromTemplate()
+    {
+        if (_selectedTemplateKey is null || string.IsNullOrWhiteSpace(_deviceName))
+        {
+            return;
+        }
+
+        var driver = DriverFactory.Create(_selectedTemplateKey);
+        var definitions = driver.ExportControlDefinitions();
+
+        var device = new ControllerDevice
+        {
+            Name = _deviceName,
+            DriverKey = GenericDriverConstants.DriverKey,
+            MidiInputDeviceName = _selectedInput,
+            MidiOutputDeviceName = _selectedOutput
+        };
+
+        foreach (var definition in definitions)
+        {
+            device.ControlDefinitions.Add(new ControllerControlDefinition
+            {
+                ControllerDeviceId = device.Id,
+                Name = definition.Label,
+                Type = definition.Type,
+                Channel = definition.Channel,
+                CommandCode = definition.CommandCode,
+                DataNumber = definition.DataNumber,
+                LedCapability = definition.LedCapability,
+                IsRelative = definition.IsRelative
+            });
+        }
+
+        Db.ControllerDevices.Add(device);
+        await Db.SaveChangesAsync();
+
+        _savedDeviceId = device.Id;
+    }
+}

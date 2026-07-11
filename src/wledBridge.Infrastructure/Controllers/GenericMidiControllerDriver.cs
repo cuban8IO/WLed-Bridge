@@ -35,6 +35,8 @@ public class GenericMidiControllerDriver(string displayName, IReadOnlyList<Gener
 
     public event EventHandler<ControlValueChangedEventArgs>? ControlChanged;
 
+    public IReadOnlyList<GenericControlDefinition> ExportControlDefinitions() => controls;
+
     public void Attach(IMidiOutputPort output) => _output = output;
 
     public void Detach() => _output = null;

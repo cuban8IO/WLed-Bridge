@@ -10,6 +10,13 @@ public interface IControllerDriver
 
     IReadOnlyList<ControlDescriptor> ControlLayout { get; }
 
+    /// <summary>
+    /// Exports this driver's full control set as raw learned-style definitions (address,
+    /// classification, LED capability) - used to seed a new editable "Generic" device from a
+    /// fixed driver's built-in layout (see the "Aus Vorlage erstellen" workflow).
+    /// </summary>
+    IReadOnlyList<GenericControlDefinition> ExportControlDefinitions();
+
     void Attach(IMidiOutputPort output);
 
     void Detach();

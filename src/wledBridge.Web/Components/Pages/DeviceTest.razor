@@ -11,6 +11,8 @@
 @inject IMidiPortFactory PortFactory
 @inject IControllerDriverFactory DriverFactory
 @inject IApplicationDbContext Db
+@inject NavigationManager Navigation
+@inject IDialogService DialogService
 
 <PageTitle>Device Test</PageTitle>
 
@@ -72,9 +74,32 @@
             @foreach (var device in _savedDevices)
             {
                 <MudListItem T="string">
-                    <div class="d-flex align-center justify-space-between" style="width: 100%;">
-                        <span>@device.Name (@device.DriverKey)</span>
-                        <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="@(() => LoadDevice(device))">Laden &amp; Verbinden</MudButton>
+                    <div class="d-flex align-center justify-space-between" style="width: 100%; gap: 8px;">
+                        @if (_renamingDeviceId == device.Id)
+                        {
+                            <MudTextField T="string" @bind-Value="_renameText" Margin="Margin.Dense" Style="max-width: 220px;" />
+                            <MudStack Row="true" Spacing="1">
+                                <MudIconButton Icon="@Icons.Material.Filled.Check" Size="Size.Small" OnClick="@(() => ConfirmRename(device))" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" OnClick="@(() => _renamingDeviceId = null)" />
+                            </MudStack>
+                        }
+                        else
+                        {
+                            <span>@device.Name (@device.DriverKey)</span>
+                            <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                                <MudTooltip Text="Umbenennen">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => StartRename(device))" />
+                                </MudTooltip>
+                                @if (device.DriverKey == GenericDriverConstants.DriverKey)
+                                {
+                                    <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="@(() => Navigation.NavigateTo($"/devices?editDeviceId={device.Id}"))">Bearbeiten</MudButton>
+                                }
+                                <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="@(() => LoadDevice(device))">Laden &amp; Verbinden</MudButton>
+                                <MudTooltip Text="Löschen">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => DeleteDevice(device))" />
+                                </MudTooltip>
+                            </MudStack>
+                        }
                     </div>
                 </MudListItem>
             }
@@ -119,22 +144,28 @@
         <MudColorPicker @bind-Text="_selectedColorHex" Palette="_colorPalette" Label="Farbe" Style="max-width: 260px;" />
         <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="ClearAllPadColors">Alle löschen</MudButton>
     </MudStack>
-    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-        @foreach (var descriptor in PadControlDescriptors)
-        {
-            var controlId = descriptor.ControlId;
-            <div style="text-align:center;">
-                <div @onclick="@(() => ApplyPadColor(controlId))"
-                     style="@GetPadStyle(controlId)"
-                     title="@($"{controlId} ({descriptor.Label})")">
-                    <span @onclick="@(() => ClearPadColor(controlId))"
-                          @onclick:stopPropagation="true"
-                          style="position:absolute;top:-6px;right:-4px;width:14px;height:14px;line-height:14px;font-size:11px;text-align:center;border-radius:50%;background:#333;color:#fff;cursor:pointer;">&times;</span>
+    @if (PositionedPadDescriptors.Any())
+    {
+        <div style="display: grid; grid-template-columns: repeat(@MaxPadColumn, 44px); gap: 18px 14px;">
+            @foreach (var descriptor in PositionedPadDescriptors)
+            {
+                <div style="grid-column: @(descriptor.Column!.Value + 1); grid-row: @(MaxPadRow - descriptor.Row!.Value + 1); text-align:center;">
+                    @RenderPad(descriptor)
                 </div>
-                <MudText Typo="Typo.caption">@descriptor.Label</MudText>
-            </div>
-        }
-    </div>
+            }
+        </div>
+    }
+    @if (UnpositionedPadDescriptors.Any())
+    {
+        <div style="display: flex; flex-wrap: wrap; gap: 14px; margin-top: @(PositionedPadDescriptors.Any() ? "18px" : "0");">
+            @foreach (var descriptor in UnpositionedPadDescriptors)
+            {
+                <div style="text-align:center;">
+                    @RenderPad(descriptor)
+                </div>
+            }
+        </div>
+    }
 </MudPaper>
 
 <MudPaper Class="pa-4 mb-4" Elevation="2">
@@ -235,6 +266,8 @@
 
     private List<ControllerDevice> _savedDevices = [];
     private ControllerDevice? _currentDevice;
+    private Guid? _renamingDeviceId;
+    private string _renameText = "";
     private VirtualMixer? _mixer;
     private List<ControlMapping> _mappings = [];
 
@@ -254,6 +287,27 @@
 
     private IEnumerable<ControlDescriptor> PadControlDescriptors =>
         SessionManager.Current?.Driver.ControlLayout.Where(c => c.Type == ControlType.Pad) ?? [];
+
+    private IReadOnlyList<ControlDescriptor> PositionedPadDescriptors =>
+        [.. PadControlDescriptors.Where(d => d.Row is not null && d.Column is not null)];
+
+    private IReadOnlyList<ControlDescriptor> UnpositionedPadDescriptors =>
+        [.. PadControlDescriptors.Where(d => d.Row is null || d.Column is null)];
+
+    private int MaxPadColumn => PositionedPadDescriptors.Count == 0 ? 0 : PositionedPadDescriptors.Max(d => d.Column!.Value) + 1;
+
+    private int MaxPadRow => PositionedPadDescriptors.Count == 0 ? 0 : PositionedPadDescriptors.Max(d => d.Row!.Value);
+
+    private RenderFragment RenderPad(ControlDescriptor descriptor) => @<text>
+        <div @onclick="@(() => ApplyPadColor(descriptor.ControlId))"
+             style="@GetPadStyle(descriptor.ControlId)"
+             title="@($"{descriptor.ControlId} ({descriptor.Label})")">
+            <span @onclick="@(() => ClearPadColor(descriptor.ControlId))"
+                  @onclick:stopPropagation="true"
+                  style="position:absolute;top:-6px;right:-4px;width:14px;height:14px;line-height:14px;font-size:11px;text-align:center;border-radius:50%;background:#333;color:#fff;cursor:pointer;">&times;</span>
+        </div>
+        <MudText Typo="Typo.caption">@descriptor.Label</MudText>
+    </text>;
 
     protected override async Task OnInitializedAsync()
     {
@@ -378,6 +432,13 @@
             {
                 _buttonStates[e.ControlId] = isOn;
                 SessionManager.Current?.Driver.SetButtonLed(e.ControlId, isOn);
+            }
+            else if (e.Type == ControlType.Encoder)
+            {
+                // Mirror hardware-driven turns onto the on-screen slider. Don't push this back
+                // out via SetLedRingValue - the device's own LED ring already auto-follows the
+                // physical position (see APC40 protocol notes), so re-sending it is redundant.
+                _encoderValues[e.ControlId] = e.Value;
             }
 
             StateHasChanged();
@@ -506,6 +567,48 @@
         var session = SessionManager.ConnectGeneric(device.Name, controls, _selectedInput, _selectedOutput);
         AttachToSession(session);
         SyncStateAfterDeviceReset();
+    }
+
+    private void StartRename(ControllerDevice device)
+    {
+        _renamingDeviceId = device.Id;
+        _renameText = device.Name;
+    }
+
+    private async Task ConfirmRename(ControllerDevice device)
+    {
+        if (string.IsNullOrWhiteSpace(_renameText))
+        {
+            return;
+        }
+
+        device.Name = _renameText;
+        await Db.SaveChangesAsync();
+        _renamingDeviceId = null;
+    }
+
+    private async Task DeleteDevice(ControllerDevice device)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Device löschen",
+            $"'{device.Name}' wirklich löschen? Das entfernt auch alle gelernten Controls dieses Geräts unwiderruflich.",
+            yesText: "Löschen",
+            cancelText: "Abbrechen");
+
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        if (_currentDevice?.Id == device.Id)
+        {
+            Disconnect();
+            _currentDevice = null;
+        }
+
+        Db.ControllerDevices.Remove(device);
+        await Db.SaveChangesAsync();
+        _savedDevices.Remove(device);
     }
 
     private async Task CreateVirtualMixer()
