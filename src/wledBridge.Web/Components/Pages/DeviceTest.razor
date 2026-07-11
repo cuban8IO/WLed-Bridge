@@ -266,7 +266,12 @@
 
         var session = SessionManager.Connect(_selectedDriverKey, _selectedInput, _selectedOutput);
         AttachToSession(session);
-        ApplyRingStyleToAllEncoders();
+
+        // Driver.Attach() already calls Reset() internally, leaving rings on Single Position
+        // at 0% - sync the test page to match instead of immediately overriding the ring
+        // style again (that previously left Volume/Pan style showing nothing at value 0,
+        // while a manual reset showed the first LED - now both end up identical).
+        SyncStateAfterDeviceReset();
     }
 
     private void Disconnect() => SessionManager.Disconnect();
@@ -274,9 +279,11 @@
     private void ResetDevice()
     {
         SessionManager.Current?.Driver.Reset();
+        SyncStateAfterDeviceReset();
+    }
 
-        // The driver's Reset() leaves rings on Single Position at 0%, so mirror that here
-        // to keep the dropdown and test-page displays in sync with the actual device state.
+    private void SyncStateAfterDeviceReset()
+    {
         _ringStyle = EncoderRingStyle.Position;
         _encoderValues.Clear();
         _padColors.Clear();

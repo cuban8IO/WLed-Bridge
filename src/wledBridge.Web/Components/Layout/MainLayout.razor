@@ -1,8 +1,6 @@
 @inherits LayoutComponentBase
 @using System.Diagnostics
-@using Microsoft.Extensions.Hosting
 @using wledBridge.Web.Theme
-@inject IHostApplicationLifetime AppLifetime
 
 <MudThemeProvider Theme="DarkTheme.Theme" IsDarkMode="true" />
 <MudPopoverProvider />
@@ -70,10 +68,13 @@
 
     private void ShutdownShortly()
     {
+        // A graceful IHostApplicationLifetime.StopApplication() waits for open connections to
+        // drain, including the very SignalR circuit this click came in on - which can hang
+        // for the whole shutdown timeout. Environment.Exit terminates immediately instead.
         _ = Task.Run(async () =>
         {
             await Task.Delay(300);
-            AppLifetime.StopApplication();
+            Environment.Exit(0);
         });
     }
 }
