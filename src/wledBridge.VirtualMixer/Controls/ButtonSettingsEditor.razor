@@ -19,7 +19,7 @@
     @if (led.ColorMode == LedColorMode.Rgb)
     {
         <div class="mt-2">
-            <VirtualMixerColorPicker Label="LED-Farbe" Value="@led.ColorHex" ValueChanged="OnLedColorChanged" AllowClear="false" />
+            <VirtualMixerColorPicker Label="LED-Farbe" Value="@led.ColorHex" ValueChanged="OnLedColorChanged" AllowClear="false" ShowSavePreset="false" />
         </div>
     }
 }

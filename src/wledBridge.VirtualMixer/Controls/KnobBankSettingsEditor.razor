@@ -38,7 +38,7 @@
         <MudText Typo="Typo.caption" Style="width:20px;">@(index + 1)</MudText>
         <MudTextField T="string" Value="@(item?.Label)" ValueChanged="@(v => OnKnobLabelChanged(index, v))"
                       Placeholder="Label" Margin="Margin.Dense" Style="max-width:110px;" />
-        <VirtualMixerColorPicker Label="" Value="@(item?.ColorHex)" ValueChanged="@(v => OnKnobColorChanged(index, v))" />
+        <VirtualMixerColorPicker Label="" Value="@(item?.ColorHex)" ValueChanged="@(v => OnKnobColorChanged(index, v))" ShowSavePreset="false" />
     </div>
 }
 

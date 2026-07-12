@@ -49,7 +49,7 @@
             };
 
             var background = Instance.BackgroundColorHex is { } hex
-                ? $"background:{ColorUtils.ToRgba(hex, 0.25)};"
+                ? $"background:{ColorUtils.ToRgba(hex, 0.4)};"
                 : "";
             return $"grid-template-columns:repeat({columns},1fr);{background}";
         }

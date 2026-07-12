@@ -23,6 +23,15 @@
         <div class="vm-control-label">@Control.Label</div>
     }
 
+    @if (IsOverlapping)
+    {
+        @* Rendered inside the control box (not an outline) so the group's overflow:hidden
+           never clips it, and it stays visible even while the control is selected. *@
+        <div class="vm-overlap-overlay" title="Überlappt ein anderes Control">
+            <span class="vm-overlap-badge">⚠</span>
+        </div>
+    }
+
     @if (EditMode)
     {
         <div @ref="_dragElement" style="position:absolute;inset:0;cursor:move;z-index:10;"></div>

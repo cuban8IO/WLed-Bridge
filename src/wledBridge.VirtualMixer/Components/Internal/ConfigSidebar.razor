@@ -14,6 +14,10 @@
     {
         var descriptor = Registry.Find(control.TypeKey);
 
+        // Keyed by the control id so switching to another control tears down and rebuilds the
+        // whole editing subtree - MudSelect/MudTextField/ColorPicker then reset cleanly instead
+        // of showing the previous control's values.
+        <div @key="@control.Id">
         <MudText Typo="Typo.overline" Class="mt-2" Style="display:block;">Grundeinstellungen</MudText>
 
         <MudTextField T="string" Value="@control.Name" ValueChanged="@(v => Update(c => c.Name = v, "name"))"
@@ -109,9 +113,11 @@
             <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="@(() => Ds.DuplicateSelection())">Duplizieren</MudButton>
             <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error" OnClick="@(() => Ds.RemoveSelection())">Entfernen</MudButton>
         </div>
+        </div>
     }
     else if (Group is { } group)
     {
+        <div @key="@group.Id">
         <MudText Typo="Typo.overline" Class="mt-2" Style="display:block;">Gruppe</MudText>
 
         <MudTextField T="string" Value="@group.Label" ValueChanged="@(v => Ds.UpdateGroup(group.Id, g => g.Label = v, "label"))"
@@ -141,6 +147,7 @@
             </MudButton>
         </div>
         <MudText Typo="Typo.caption" Style="opacity:0.7;">Controls einer entfernten Gruppe wandern in die erste Gruppe.</MudText>
+        </div>
     }
     else if (Ds.ConfigMixerOpen)
     {

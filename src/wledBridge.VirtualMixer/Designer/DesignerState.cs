@@ -163,6 +163,7 @@ internal sealed class DesignerState
             Selection.Remove(controlId);
         }
 
+        ApplyConfigFromSelection();
         NotifyChanged();
     }
 
@@ -187,30 +188,53 @@ internal sealed class DesignerState
             }
         }
 
+        ApplyConfigFromSelection();
         NotifyChanged();
     }
 
     public void ClearSelection()
     {
         Selection.Clear();
+        ApplyConfigFromSelection();
         NotifyChanged();
+    }
+
+    /// <summary>
+    /// The control config panel follows the selection: it shows the settings of exactly one
+    /// selected control, and closes automatically when the control is deselected or the
+    /// selection becomes empty/multi (so leaving a control's focus hides its settings).
+    /// </summary>
+    private void ApplyConfigFromSelection()
+    {
+        if (Selection.Count == 1)
+        {
+            ConfigControlId = Selection.First();
+            ConfigGroupId = null;
+            ConfigMixerOpen = false;
+        }
+        else if (ConfigControlId is not null)
+        {
+            ConfigControlId = null;
+        }
     }
 
     public void OpenConfig(Guid controlId)
     {
-        ConfigControlId = controlId;
-        ConfigGroupId = null;
-        if (!Selection.Contains(controlId))
+        if (!Selection.Contains(controlId) || Selection.Count != 1)
         {
             Selection.Clear();
             Selection.Add(controlId);
         }
 
+        ConfigControlId = controlId;
+        ConfigGroupId = null;
+        ConfigMixerOpen = false;
         NotifyChanged();
     }
 
     public void OpenGroupConfig(Guid groupId)
     {
+        Selection.Clear();
         ConfigGroupId = groupId;
         ConfigControlId = null;
         ConfigMixerOpen = false;
@@ -221,6 +245,7 @@ internal sealed class DesignerState
 
     public void OpenMixerConfig()
     {
+        Selection.Clear();
         ConfigMixerOpen = true;
         ConfigControlId = null;
         ConfigGroupId = null;

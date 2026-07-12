@@ -2,62 +2,55 @@
 @implements IDisposable
 @inject IColorPresetService Presets
 
-<div class="d-flex align-center gap-2">
-    <MudMenu AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft" Dense="true">
-        <ActivatorContent>
-            <div style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-                <div style="width:26px;height:26px;border-radius:4px;border:1px solid var(--mud-palette-lines-default);
-                            background:@(Value ?? "transparent");
-                            background-image:@(Value is null ? "linear-gradient(45deg,#555 25%,transparent 25%,transparent 75%,#555 75%),linear-gradient(45deg,#555 25%,transparent 25%,transparent 75%,#555 75%)" : "none");
-                            background-size:8px 8px;background-position:0 0,4px 4px;">
-                </div>
-                <MudText Typo="Typo.caption">@Label</MudText>
-            </div>
-        </ActivatorContent>
-        <ChildContent>
-            <div style="padding:10px;min-width:240px;" @onclick:stopPropagation="true">
-                @if (_presets.Count > 0)
-                {
-                    <MudText Typo="Typo.caption" Class="mb-1">Presets</MudText>
-                    <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;">
-                        @foreach (var preset in _presets)
-                        {
-                            <MudTooltip Text="@preset.Name">
-                                <div @onclick="@(() => Apply(preset.ColorHex))"
-                                     style="width:22px;height:22px;border-radius:4px;cursor:pointer;border:1px solid var(--mud-palette-lines-default);background:@preset.ColorHex;"></div>
-                            </MudTooltip>
-                        }
-                    </div>
-                }
-                @if (Presets.RecentColors.Count > 0)
-                {
-                    <MudText Typo="Typo.caption" Class="mb-1">Zuletzt verwendet</MudText>
-                    <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;">
-                        @foreach (var recent in Presets.RecentColors)
-                        {
-                            <div @onclick="@(() => Apply(recent))"
-                                 style="width:22px;height:22px;border-radius:4px;cursor:pointer;border:1px solid var(--mud-palette-lines-default);background:@recent;"></div>
-                        }
-                    </div>
-                }
-                <MudText Typo="Typo.caption" Class="mb-1">Eigene Farbe</MudText>
-                <div style="display:flex;align-items:center;gap:8px;">
-                    <input type="color" value="@(_customColor)" @onchange="OnCustomColorChanged"
-                           style="width:40px;height:30px;border:none;background:none;padding:0;cursor:pointer;" />
-                    <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="ApplyCustom">Übernehmen</MudButton>
-                </div>
-                <div style="display:flex;align-items:center;gap:6px;margin-top:8px;">
-                    <MudTextField T="string" @bind-Value="_presetName" Placeholder="Preset-Name" Margin="Margin.Dense" Style="max-width:130px;" />
-                    <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="SaveAsPreset"
-                               Disabled="@(string.IsNullOrWhiteSpace(_presetName))">Als Preset speichern</MudButton>
-                </div>
-                @if (AllowClear)
-                {
-                    <MudButton Size="Size.Small" Variant="Variant.Text" Class="mt-2" OnClick="@(() => Apply(null))">Keine Farbe</MudButton>
-                }
-            </div>
-        </ChildContent>
-    </MudMenu>
+@* Inline color picker (no popover): a native color input that applies immediately, plus the
+   shared preset/recent swatches. Kept inline on purpose - a menu-hidden picker read as
+   "the background color can't be set". *@
+<div class="d-flex flex-column" style="gap:4px;">
+    <div class="d-flex align-center" style="gap:8px;">
+        <div style="width:22px;height:22px;border-radius:4px;flex-shrink:0;border:1px solid var(--mud-palette-lines-default);
+                    background:@(Value ?? "transparent");
+                    background-image:@(Value is null ? "linear-gradient(45deg,#555 25%,transparent 25%,transparent 75%,#555 75%),linear-gradient(45deg,#555 25%,transparent 25%,transparent 75%,#555 75%)" : "none");
+                    background-size:8px 8px;background-position:0 0,4px 4px;">
+        </div>
+        <MudText Typo="Typo.caption" Style="flex:1;">@Label</MudText>
+        <input type="color" value="@(_customColor)" @onchange="OnCustomColorChanged"
+               title="Eigene Farbe wählen"
+               style="width:34px;height:26px;border:none;background:none;padding:0;cursor:pointer;" />
+        @if (AllowClear)
+        {
+            <MudIconButton Icon="@Icons.Material.Filled.FormatColorReset" Size="Size.Small" Title="Keine Farbe"
+                           OnClick="@(() => Apply(null))" />
+        }
+    </div>
+
+    @if (_presets.Count > 0 || Presets.RecentColors.Count > 0)
+    {
+        <div class="d-flex flex-wrap" style="gap:4px;">
+            @foreach (var preset in _presets)
+            {
+                <MudTooltip Text="@preset.Name">
+                    <div @onclick="@(() => Apply(preset.ColorHex))"
+                         style="width:20px;height:20px;border-radius:4px;cursor:pointer;border:1px solid var(--mud-palette-lines-default);background:@preset.ColorHex;"></div>
+                </MudTooltip>
+            }
+            @foreach (var recent in Presets.RecentColors)
+            {
+                <MudTooltip Text="Zuletzt verwendet">
+                    <div @onclick="@(() => Apply(recent))"
+                         style="width:20px;height:20px;border-radius:4px;cursor:pointer;border:1px dashed var(--mud-palette-lines-default);background:@recent;"></div>
+                </MudTooltip>
+            }
+        </div>
+    }
+
+    @if (ShowSavePreset && Value is not null)
+    {
+        <div class="d-flex align-center" style="gap:6px;">
+            <MudTextField T="string" @bind-Value="_presetName" Placeholder="Preset-Name" Margin="Margin.Dense" Style="max-width:130px;" />
+            <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="SaveAsPreset"
+                       Disabled="@(string.IsNullOrWhiteSpace(_presetName))">Als Preset</MudButton>
+        </div>
+    }
 </div>
 
 @code {
@@ -65,6 +58,9 @@
     [Parameter] public EventCallback<string?> ValueChanged { get; set; }
     [Parameter] public string Label { get; set; } = "Farbe";
     [Parameter] public bool AllowClear { get; set; } = true;
+
+    /// <summary>Shows the inline "save current color as preset" affordance (Q-007).</summary>
+    [Parameter] public bool ShowSavePreset { get; set; } = true;
 
     private IReadOnlyList<ColorPreset> _presets = [];
     private string _customColor = "#01FF95";
@@ -74,6 +70,10 @@
     {
         _presets = await Presets.GetPresetsAsync();
         Presets.Changed += OnPresetsChanged;
+    }
+
+    protected override void OnParametersSet()
+    {
         if (Value is not null)
         {
             _customColor = Value;
@@ -86,7 +86,13 @@
         StateHasChanged();
     });
 
-    private void OnCustomColorChanged(ChangeEventArgs e) => _customColor = e.Value?.ToString() ?? _customColor;
+    // Native color inputs fire "change" once the user commits a color - apply immediately.
+    private async Task OnCustomColorChanged(ChangeEventArgs e)
+    {
+        _customColor = e.Value?.ToString() ?? _customColor;
+        Presets.PushRecentColor(_customColor);
+        await Apply(_customColor);
+    }
 
     private async Task Apply(string? color)
     {
@@ -94,17 +100,12 @@
         await ValueChanged.InvokeAsync(color);
     }
 
-    private async Task ApplyCustom()
-    {
-        Presets.PushRecentColor(_customColor);
-        await Apply(_customColor);
-    }
-
     private async Task SaveAsPreset()
     {
         await Presets.SavePresetAsync(new ColorPreset { Name = _presetName.Trim(), ColorHex = _customColor });
         _presetName = "";
-        await ApplyCustom();
+        Presets.PushRecentColor(_customColor);
+        await Apply(_customColor);
     }
 
     public void Dispose() => Presets.Changed -= OnPresetsChanged;

@@ -23,7 +23,7 @@
         get
         {
             var background = Instance.BackgroundColorHex is { } hex
-                ? ColorUtils.ToRgba(hex, 0.35)
+                ? ColorUtils.ToRgba(hex, 0.55)
                 : "var(--mud-palette-surface, #1e1e1e)";
             var text = Instance.BackgroundColorHex is { } textHex
                 ? ColorUtils.ContrastingTextColor(textHex)

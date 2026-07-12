@@ -99,7 +99,11 @@ else
 
                 @if (_ds.EditMode && (_ds.ConfigControlId is not null || _ds.ConfigGroupId is not null || _ds.ConfigMixerOpen))
                 {
-                    <ConfigSidebar />
+                    @* Keyed by the current config target: the sidebar is parameterless under an
+                       IsFixed cascade, so without a changing key it would not re-render when the
+                       selected control changes (only on mount/unmount). Keying forces a fresh
+                       sidebar per target, so switching controls updates it cleanly. *@
+                    <ConfigSidebar @key="ConfigTargetKey" />
                 }
             </div>
 
@@ -119,6 +123,11 @@ else
 
     private DesignerState? _ds;
     private MixerSurface? _surface;
+
+    /// <summary>Identity of whatever the config sidebar currently targets (control/group/mixer).</summary>
+    private string ConfigTargetKey => _ds is null
+        ? "none"
+        : _ds.ConfigControlId?.ToString() ?? _ds.ConfigGroupId?.ToString() ?? (_ds.ConfigMixerOpen ? "mixer" : "none");
     private bool _loadFailed;
     private bool _preventKeyDefault = true;
     private IJSObjectReference? _module;
