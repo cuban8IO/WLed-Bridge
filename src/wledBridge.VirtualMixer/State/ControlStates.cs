@@ -25,6 +25,9 @@ public sealed class ValueState : ControlStateBase
 
     /// <summary>Runtime color override (statusbar RGB), set via LED commands.</summary>
     public string? ColorHex { get; set; }
+
+    /// <summary>Secondary value channel (knob LED ring in "External" mode), set via sub-index 0.</summary>
+    public int RingValue { get; set; }
 }
 
 /// <summary>Knob bank: one value per mini knob.</summary>
@@ -41,4 +44,5 @@ public sealed record ControlStateSnapshot(
     bool? IsOn,
     int? LedBrightness,
     string? LedColorHex,
-    IReadOnlyList<int>? SubValues);
+    IReadOnlyList<int>? SubValues,
+    int? RingValue = null);

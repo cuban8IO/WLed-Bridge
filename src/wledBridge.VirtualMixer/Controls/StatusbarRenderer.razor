@@ -3,27 +3,55 @@
 @inherits ControlRendererBase
 
 <div class="vm-statusbar @(Settings.Orientation == ControlOrientation.Vertical ? "vertical" : "horizontal")">
-    <div class="vm-statusbar-fill" style="@FillStyle"></div>
+    <div class="vm-statusbar-fill @ModeClass" style="@FillStyle"></div>
 </div>
 
 @code {
     private StatusbarSettings Settings => (StatusbarSettings)Instance.Settings;
 
+    private int Value => State?.Value ?? 0;
+
+    private string Color => Settings.ColorMode == LedColorMode.Rgb
+        ? State?.LedColorHex ?? Settings.ColorHex ?? ColorUtils.AmberHex
+        : ColorUtils.AmberHex;
+
+    private bool Vertical => Settings.Orientation == ControlOrientation.Vertical;
+
+    private string ModeClass => Settings.DisplayMode switch
+    {
+        LedDisplayMode.Pulse => "vm-led-pulse",
+        _ => ""
+    };
+
     private string FillStyle
     {
         get
         {
-            var value = State?.Value ?? 0;
-            var percent = value / 127.0 * 100.0;
-            var color = Settings.ColorMode == LedColorMode.Rgb
-                ? State?.LedColorHex ?? Settings.ColorHex ?? ColorUtils.AmberHex
-                : ColorUtils.AmberHex;
+            var color = Color;
+            var glow = $"box-shadow:0 0 8px {ColorUtils.ToRgba(color, 0.5)};";
 
-            var size = Settings.Orientation == ControlOrientation.Vertical
-                ? $"height:{percent.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)}%;"
-                : $"width:{percent.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)}%;";
+            return Settings.DisplayMode switch
+            {
+                // Whole element lit; the value scales the overall brightness/opacity.
+                LedDisplayMode.Solid or LedDisplayMode.Pulse =>
+                    $"width:100%;height:100%;background:{color};opacity:{Opacity(Value)};{glow}",
 
-            return $"{size}background:{color};box-shadow:0 0 8px {ColorUtils.ToRgba(color, 0.5)};";
+                // Proportional fill that fades out towards the leading edge.
+                LedDisplayMode.Fade =>
+                    $"{SizeCss(Value)}background:linear-gradient({(Vertical ? "0deg" : "90deg")},{color},{ColorUtils.ToRgba(color, 0.1)});{glow}",
+
+                // Classic proportional fill (hard edge).
+                _ => $"{SizeCss(Value)}background:{color};{glow}"
+            };
         }
     }
+
+    private string SizeCss(int value)
+    {
+        var percent = (value / 127.0 * 100.0).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+        return Vertical ? $"width:100%;height:{percent}%;" : $"height:100%;width:{percent}%;";
+    }
+
+    private static string Opacity(int value) =>
+        (0.12 + (Math.Clamp(value, 0, 127) / 127.0 * 0.88)).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
 }

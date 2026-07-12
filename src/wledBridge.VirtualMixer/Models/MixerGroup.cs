@@ -18,5 +18,29 @@ public class MixerGroup
     public bool IsCollapsed { get; set; }
     public List<ControlInstance> Controls { get; set; } = [];
 
-    public int EffectiveWidth => IsCollapsed ? CollapsedWidth : Width;
+    public IEnumerable<ControlInstance> CollapsedVisibleControls =>
+        Controls.Where(c => c.KeepVisibleWhenCollapsed);
+
+    /// <summary>
+    /// Rendered width: the full width when expanded; when collapsed, the narrow lane width -
+    /// unless some controls keep rendering, in which case it grows just enough to fit them.
+    /// </summary>
+    public int EffectiveWidth
+    {
+        get
+        {
+            if (!IsCollapsed)
+            {
+                return Width;
+            }
+
+            var kept = CollapsedVisibleControls.ToList();
+            if (kept.Count == 0)
+            {
+                return CollapsedWidth;
+            }
+
+            return Math.Max(CollapsedWidth, kept.Max(c => c.X + c.Width) + 8);
+        }
+    }
 }

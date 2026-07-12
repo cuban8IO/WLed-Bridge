@@ -108,6 +108,7 @@ internal sealed class ControlInstanceJsonConverter(ISettingsTypeResolver resolve
             BackgroundColorHex = node["BackgroundColorHex"]?.GetValue<string>(),
             IsVisible = node["IsVisible"]?.GetValue<bool>() ?? true,
             IsEnabled = node["IsEnabled"]?.GetValue<bool>() ?? true,
+            KeepVisibleWhenCollapsed = node["KeepVisibleWhenCollapsed"]?.GetValue<bool>() ?? false,
             Settings = settings ?? throw new JsonException($"Control instance of type '{typeKey}' has no Settings.")
         };
     }
@@ -126,6 +127,7 @@ internal sealed class ControlInstanceJsonConverter(ISettingsTypeResolver resolve
         if (value.BackgroundColorHex is not null) writer.WriteString("BackgroundColorHex", value.BackgroundColorHex);
         writer.WriteBoolean("IsVisible", value.IsVisible);
         writer.WriteBoolean("IsEnabled", value.IsEnabled);
+        if (value.KeepVisibleWhenCollapsed) writer.WriteBoolean("KeepVisibleWhenCollapsed", true);
         writer.WritePropertyName("Settings");
         JsonSerializer.Serialize(writer, value.Settings, value.Settings.GetType(), options);
         writer.WriteEndObject();

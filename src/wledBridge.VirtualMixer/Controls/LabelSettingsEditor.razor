@@ -1,0 +1,33 @@
+@namespace wledBridge.VirtualMixer.Controls
+@using wledBridge.VirtualMixer.Components.Internal
+
+<MudText Typo="Typo.caption" Style="opacity:0.7;">Der angezeigte Text ist das "Label" unter Grundeinstellungen.</MudText>
+
+<MudNumericField T="int" Value="Settings.FontSize" ValueChanged="OnFontSizeChanged" Label="Schriftgröße (px)" Min="6" Max="120" Margin="Margin.Dense" Class="mt-1" />
+
+<MudSelect T="string" Value="Settings.TextAlign" ValueChanged="OnAlignChanged" Label="Ausrichtung" Margin="Margin.Dense" Dense="true" Class="mt-1">
+    <MudSelectItem T="string" Value="@("left")">Links</MudSelectItem>
+    <MudSelectItem T="string" Value="@("center")">Zentriert</MudSelectItem>
+    <MudSelectItem T="string" Value="@("right")">Rechts</MudSelectItem>
+</MudSelect>
+
+<MudTextField T="string" Value="@Settings.FontFamily" ValueChanged="OnFontFamilyChanged" Label="Schriftart (leer = Theme)"
+              Placeholder="z.B. Oswald, Arial" Margin="Margin.Dense" Class="mt-1" />
+
+<MudSwitch T="bool" Value="Settings.Bold" ValueChanged="OnBoldChanged" Label="Fett" Color="Color.Primary" Class="mt-1" />
+
+<div class="mt-2">
+    <VirtualMixerColorPicker Label="Textfarbe (leer = Theme)" Value="@Settings.ColorHex" ValueChanged="OnColorChanged" ShowSavePreset="false" />
+</div>
+
+@code {
+    [Parameter] public required ControlEditContext Context { get; set; }
+
+    private LabelSettings Settings => (LabelSettings)Context.Instance.Settings;
+
+    private void OnFontSizeChanged(int s) => Context.Update(c => ((LabelSettings)c.Settings).FontSize = Math.Clamp(s, 6, 120), "label-size");
+    private void OnAlignChanged(string a) => Context.Update(c => ((LabelSettings)c.Settings).TextAlign = a, "label-align");
+    private void OnFontFamilyChanged(string? f) => Context.Update(c => ((LabelSettings)c.Settings).FontFamily = string.IsNullOrWhiteSpace(f) ? null : f, "label-font");
+    private void OnBoldChanged(bool b) => Context.Update(c => ((LabelSettings)c.Settings).Bold = b, "label-bold");
+    private void OnColorChanged(string? color) => Context.Update(c => ((LabelSettings)c.Settings).ColorHex = color, "label-color");
+}

@@ -3,48 +3,58 @@
 @using wledBridge.VirtualMixer.State
 @inherits ControlRendererBase
 
-<div class="vm-button @(State?.IsOn == true ? "vm-on" : "")"
+<div class="vm-button @(IsOn ? "vm-on" : "") @(Pulsing ? "vm-led-pulse" : "")"
      style="@Style"
      @onpointerdown="OnPointerDown"
      @onpointerup="OnPointerUp"
      @onpointerleave="OnPointerLeave">
-    @if (Settings.Led is not null)
+    @if (Settings.Led is not null && !Settings.LedFillButton)
     {
-        <div class="vm-button-led" style="background:@LedColor"></div>
+        <div class="vm-button-led @(Pulsing ? "vm-led-pulse" : "")" style="background:@LedColor"></div>
     }
-    <span style="font-size:@(FontSize)px;line-height:1.1;overflow:hidden;">@Instance.Label</span>
+    <span style="font-size:@(FontSize)px;line-height:1.1;overflow:hidden;position:relative;z-index:1;">@Instance.Label</span>
 </div>
 
 @code {
     private ButtonSettings Settings => (ButtonSettings)Instance.Settings;
 
+    private bool IsOn => State?.IsOn == true;
+
+    // Effective LED brightness: when the LED follows the button state, the active state lights it
+    // (127) without any external command; otherwise it uses the externally set brightness.
+    private int LedBrightness => Settings.LedFollowsState ? (IsOn ? 127 : 0) : State?.LedBrightness ?? 0;
+
+    private bool Pulsing => Settings.Led is { DisplayMode: LedDisplayMode.Pulse } && LedBrightness > 0;
+
     private string Style
     {
         get
         {
-            var background = Instance.BackgroundColorHex is { } hex
-                ? ColorUtils.ToRgba(hex, 0.55)
-                : "var(--mud-palette-surface, #1e1e1e)";
             var text = Instance.BackgroundColorHex is { } textHex
                 ? ColorUtils.ContrastingTextColor(textHex)
                 : "var(--mud-palette-text-primary, #fff)";
+
+            // "LED on button": the whole button glows in the LED colour when lit.
+            if (Settings.Led is not null && Settings.LedFillButton && LedBrightness > 0)
+            {
+                var led = ColorUtils.LedColor(LedConfiguredColor, LedBrightness);
+                return $"background:{led};color:{ColorUtils.ContrastingTextColor(LedConfiguredColor)};box-shadow:0 0 12px {ColorUtils.ToRgba(LedConfiguredColor, 0.6)};";
+            }
+
+            var background = Instance.BackgroundColorHex is { } hex
+                ? ColorUtils.ToRgba(hex, 0.55)
+                : "var(--mud-palette-surface, #1e1e1e)";
             return $"background:{background};color:{text};";
         }
     }
 
     private int FontSize => Math.Clamp(Math.Min(Instance.Width, Instance.Height) / 4, 9, 16);
 
-    private string LedColor
-    {
-        get
-        {
-            var brightness = State?.LedBrightness ?? 0;
-            var configured = Settings.Led?.ColorMode == LedColorMode.Rgb
-                ? State?.LedColorHex ?? Settings.Led?.ColorHex
-                : ColorUtils.AmberHex;
-            return ColorUtils.LedColor(configured, brightness);
-        }
-    }
+    private string LedConfiguredColor => Settings.Led?.ColorMode == LedColorMode.Rgb
+        ? State?.LedColorHex ?? Settings.Led?.ColorHex ?? ColorUtils.AmberHex
+        : ColorUtils.AmberHex;
+
+    private string LedColor => ColorUtils.LedColor(LedConfiguredColor, LedBrightness);
 
     private Task OnPointerDown() => Send(new ButtonPressCommand(Instance.Id));
 

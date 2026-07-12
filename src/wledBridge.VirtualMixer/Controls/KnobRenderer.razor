@@ -1,10 +1,23 @@
 @namespace wledBridge.VirtualMixer.Controls
 @using wledBridge.VirtualMixer.State
+@using wledBridge.VirtualMixer.Components.Internal
 @inherits ControlRendererBase
 @implements IAsyncDisposable
 @inject IJSRuntime JS
 
-<div @ref="_element" class="vm-knob" @onwheel="OnWheel" @onwheel:preventDefault="@Interactive">
+<div @ref="_element" class="vm-knob" style="position:relative;" @onwheel="OnWheel" @onwheel:preventDefault="@Interactive">
+    @if (Settings.LedRingEnabled)
+    {
+        <svg viewBox="0 0 40 40" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;">
+            <circle cx="20" cy="20" r="18" fill="none" stroke="var(--mud-palette-lines-default,#444)" stroke-width="2.5" opacity="0.4" />
+            @if (RingFraction > 0.001)
+            {
+                <circle cx="20" cy="20" r="18" fill="none" stroke="@RingColor" stroke-width="2.5" stroke-linecap="round"
+                        stroke-dasharray="@RingCircumference" stroke-dashoffset="@RingOffset"
+                        transform="rotate(135 20 20)" style="filter:drop-shadow(0 0 2px @RingColor);" />
+            }
+        </svg>
+    }
     <KnobFace Position="@KnobPosition" />
 </div>
 
@@ -20,11 +33,36 @@
     private double _dragStartPosition;
     private double _relativeSentPixels;
 
+    // The LED ring spans 270° (like a real knob): fraction 0..1 maps onto that arc.
+    private const double RingArcSpan = 0.75; // 270° of the full circle
+
     private KnobSettings Settings => (KnobSettings)Instance.Settings;
 
     private bool IsRelative => Settings.Mode == KnobMode.Relative;
 
     private double? KnobPosition => IsRelative ? null : Settings.Curve.ToPosition(State?.Value ?? 0);
+
+    private double RingFraction
+    {
+        get
+        {
+            var value = Settings.LedRingSource == KnobRingSource.External
+                ? State?.RingValue ?? 0
+                : State?.Value ?? 0;
+            return Math.Clamp(value / 127.0, 0.0, 1.0);
+        }
+    }
+
+    private string RingColor => Settings.LedRingColorMode == LedColorMode.Rgb
+        ? Settings.LedRingColorHex ?? ColorUtils.AmberHex
+        : ColorUtils.AmberHex;
+
+    // r=18 circle circumference; the visible arc is 270° so the dash pattern uses 3/4 of it.
+    private const double FullCircumference = 2 * Math.PI * 18;
+    private string RingCircumference =>
+        (FullCircumference).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+    private string RingOffset =>
+        (FullCircumference * (1 - (RingFraction * RingArcSpan))).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
 
     [CascadingParameter(Name = "VmScale")] public double Scale { get; set; } = 1.0;
 

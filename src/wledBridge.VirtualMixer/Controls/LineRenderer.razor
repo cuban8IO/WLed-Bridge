@@ -1,0 +1,16 @@
+@namespace wledBridge.VirtualMixer.Controls
+@inherits ControlRendererBase
+
+<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">
+    <div style="@LineStyle"></div>
+</div>
+
+@code {
+    private LineSettings Settings => (LineSettings)Instance.Settings;
+
+    private string Color => Settings.ColorHex ?? "var(--mud-palette-lines-default, #666)";
+
+    private string LineStyle => Settings.Orientation == ControlOrientation.Vertical
+        ? $"width:{Settings.Thickness}px;height:100%;background:{Color};border-radius:{Settings.Thickness}px;"
+        : $"height:{Settings.Thickness}px;width:100%;background:{Color};border-radius:{Settings.Thickness}px;";
+}

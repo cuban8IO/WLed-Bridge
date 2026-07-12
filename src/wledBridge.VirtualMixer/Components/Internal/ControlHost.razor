@@ -79,7 +79,8 @@
     private bool IsOverlapping => EditMode && Ds?.Overlaps.Contains(Control.Id) == true;
     private string ElementId => $"vmc-{Control.Id}";
 
-    private bool ShowExternalLabel => Control.TypeKey != BuiltInControlTypes.Button;
+    private bool ShowExternalLabel =>
+        Control.TypeKey is not (BuiltInControlTypes.Button or BuiltInControlTypes.Line or BuiltInControlTypes.Label);
 
     private (int X, int Y, int W, int H) EffectiveRect =>
         Ds?.ResizePreview is { } preview && preview.ControlId == Control.Id

@@ -150,6 +150,45 @@ public class RuntimeEngineTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task Knob_ring_value_is_an_independent_sub_channel()
+    {
+        var knob = TestSetup.CreateControl(BuiltInControlTypes.Knob,
+            new KnobSettings { LedRingEnabled = true, LedRingSource = KnobRingSource.External });
+        _runtime.RegisterMixer(TestSetup.CreateMixer(knob));
+
+        await _runtime.SetControlValueAsync(knob.Id, 40);       // knob position
+        await _runtime.SetSubValueAsync(knob.Id, 0, 111);        // ring value (sub-index 0)
+        await TestSetup.WaitForAsync(() => _runtime.GetControlState(knob.Id)?.RingValue == 111);
+
+        var state = _runtime.GetControlState(knob.Id)!;
+        Assert.Equal(40, state.Value);       // position unchanged
+        Assert.Equal(111, state.RingValue);  // ring driven independently
+    }
+
+    [Fact]
+    public async Task Binding_can_drive_a_knob_ring_via_target_sub_index()
+    {
+        var fader = TestSetup.CreateControl(BuiltInControlTypes.Fader, new FaderSettings(), "Quelle");
+        var knob = TestSetup.CreateControl(BuiltInControlTypes.Knob,
+            new KnobSettings { LedRingEnabled = true, LedRingSource = KnobRingSource.External }, "Regler");
+        var mixer = TestSetup.CreateMixer(fader, knob);
+        mixer.Bindings.Add(new ControlBinding
+        {
+            SourceControlId = fader.Id,
+            TargetControlId = knob.Id,
+            TargetSubIndex = 0,   // drive the knob's LED ring, not its position
+            Transform = new BindingTransform { Type = BindingTransformType.Identity }
+        });
+        _runtime.RegisterMixer(mixer);
+
+        await _runtime.SetControlValueAsync(fader.Id, 88);
+        await TestSetup.WaitForAsync(() => _runtime.GetControlState(knob.Id)?.RingValue == 88);
+
+        Assert.Equal(0, _runtime.GetControlState(knob.Id)!.Value);      // knob position untouched
+        Assert.Equal(88, _runtime.GetControlState(knob.Id)!.RingValue); // ring followed the binding
+    }
+
+    [Fact]
     public async Task Reregistering_mixer_keeps_values_of_surviving_controls()
     {
         var fader = TestSetup.CreateControl(BuiltInControlTypes.Fader, new FaderSettings());

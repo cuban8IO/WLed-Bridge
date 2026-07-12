@@ -13,7 +13,14 @@
     </div>
 }
 
-<MudSelect T="ControlOrientation" Value="Settings.Orientation" ValueChanged="OnOrientationChanged" Label="Füllrichtung" Margin="Margin.Dense" Dense="true" Class="mt-2">
+<MudSelect T="LedDisplayMode" Value="Settings.DisplayMode" ValueChanged="OnDisplayModeChanged" Label="Anzeige" Margin="Margin.Dense" Dense="true" Class="mt-2">
+    <MudSelectItem T="LedDisplayMode" Value="LedDisplayMode.Bar">Balken (füllend)</MudSelectItem>
+    <MudSelectItem T="LedDisplayMode" Value="LedDisplayMode.Fade">Balken faded (Verlauf)</MudSelectItem>
+    <MudSelectItem T="LedDisplayMode" Value="LedDisplayMode.Solid">Nur leuchtend (Helligkeit = Wert)</MudSelectItem>
+    <MudSelectItem T="LedDisplayMode" Value="LedDisplayMode.Pulse">Pulsierend</MudSelectItem>
+</MudSelect>
+
+<MudSelect T="ControlOrientation" Value="Settings.Orientation" ValueChanged="OnOrientationChanged" Label="Füllrichtung" Margin="Margin.Dense" Dense="true" Class="mt-1">
     <MudSelectItem T="ControlOrientation" Value="ControlOrientation.Horizontal">Horizontal</MudSelectItem>
     <MudSelectItem T="ControlOrientation" Value="ControlOrientation.Vertical">Vertikal</MudSelectItem>
 </MudSelect>
@@ -31,4 +38,7 @@
 
     private void OnOrientationChanged(ControlOrientation orientation) =>
         Context.Update(c => ((StatusbarSettings)c.Settings).Orientation = orientation, "statusbar-orientation");
+
+    private void OnDisplayModeChanged(LedDisplayMode mode) =>
+        Context.Update(c => ((StatusbarSettings)c.Settings).DisplayMode = mode, "statusbar-display");
 }

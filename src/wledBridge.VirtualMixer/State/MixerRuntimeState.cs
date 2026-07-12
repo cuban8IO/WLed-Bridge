@@ -135,7 +135,7 @@ internal sealed class MixerRuntimeState : IVirtualMixerRuntime, IAsyncDisposable
         return state switch
         {
             ButtonState b => new ControlStateSnapshot(controlId, control.Instance.TypeKey, null, b.IsOn, b.LedBrightness, b.LedColorHex, null),
-            ValueState v => new ControlStateSnapshot(controlId, control.Instance.TypeKey, v.Value, null, null, v.ColorHex, null),
+            ValueState v => new ControlStateSnapshot(controlId, control.Instance.TypeKey, v.Value, null, null, v.ColorHex, null, v.RingValue),
             SubValueState s => new ControlStateSnapshot(controlId, control.Instance.TypeKey, null, null, null, null, [.. s.Values]),
             _ => null
         };
@@ -415,6 +415,31 @@ internal sealed class MixerRuntimeState : IVirtualMixerRuntime, IAsyncDisposable
 
     private void ApplySetSubValue(RegisteredControl control, ControlStateBase state, int subIndex, int value, CommandSource source, int depth)
     {
+        // A single-value control (knob) exposes its LED ring as sub-index 0, so bindings and the
+        // runtime API can drive the ring independently of the knob position.
+        if (state is ValueState ringState && subIndex == 0)
+        {
+            value = Math.Clamp(value, 0, 127);
+            if (ringState.RingValue == value)
+            {
+                return;
+            }
+
+            var oldRing = ringState.RingValue;
+            ringState.RingValue = value;
+
+            Raise(new ControlValueChangedEventArgs
+            {
+                MixerId = control.MixerId, MixerName = control.MixerName,
+                ControlId = control.Instance.Id, ControlName = control.Instance.Name,
+                TypeKey = control.Instance.TypeKey, SubIndex = subIndex, Source = source,
+                OldValue = oldRing, NewValue = value
+            });
+            NotifyControl(control.Instance.Id);
+            EvaluateBindings(control, subIndex, value, depth);
+            return;
+        }
+
         if (state is not SubValueState subState || subIndex < 0 || subIndex >= subState.Values.Length)
         {
             return;

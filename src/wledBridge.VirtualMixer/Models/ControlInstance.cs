@@ -18,5 +18,9 @@ public class ControlInstance
     public string? BackgroundColorHex { get; set; }
     public bool IsVisible { get; set; } = true;
     public bool IsEnabled { get; set; } = true;
+
+    /// <summary>When true, this control keeps rendering while its group is collapsed.</summary>
+    public bool KeepVisibleWhenCollapsed { get; set; }
+
     public required ControlSettingsBase Settings { get; set; }
 }

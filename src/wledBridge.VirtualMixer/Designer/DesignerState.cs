@@ -309,6 +309,14 @@ internal sealed class DesignerState
         return (Math.Clamp(x, 0, maxX), Math.Clamp(y, 0, maxY));
     }
 
+    /// <summary>Height (logical px) of the external caption rendered below labelled controls.</summary>
+    public const int ExternalLabelHeight = 16;
+
+    /// <summary>True if a control renders an external caption below it (so its collision box grows).</summary>
+    public static bool HasExternalLabel(ControlInstance control) =>
+        !string.IsNullOrEmpty(control.Label) &&
+        control.TypeKey is not (BuiltInControlTypes.Button or BuiltInControlTypes.Line or BuiltInControlTypes.Label);
+
     private void RecomputeOverlaps()
     {
         var overlaps = new HashSet<Guid>();
@@ -322,8 +330,12 @@ internal sealed class DesignerState
                 {
                     var a = controls[i];
                     var b = controls[j];
+                    // The collision box includes the external label (when present), so labels
+                    // that stick out below a control also trigger the overlap warning.
+                    var ah = a.Height + (HasExternalLabel(a) ? ExternalLabelHeight : 0);
+                    var bh = b.Height + (HasExternalLabel(b) ? ExternalLabelHeight : 0);
                     if (a.X < b.X + b.Width && a.X + a.Width > b.X &&
-                        a.Y < b.Y + b.Height && a.Y + a.Height > b.Y)
+                        a.Y < b.Y + bh && a.Y + ah > b.Y)
                     {
                         overlaps.Add(a.Id);
                         overlaps.Add(b.Id);

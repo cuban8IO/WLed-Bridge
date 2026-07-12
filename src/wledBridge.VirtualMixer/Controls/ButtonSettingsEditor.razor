@@ -11,7 +11,8 @@
 
 @if (Settings.Led is { } led)
 {
-    <MudSelect T="LedColorMode" Value="led.ColorMode" ValueChanged="OnLedModeChanged" Label="LED-Modus" Margin="Margin.Dense" Dense="true" Class="mt-1">
+    @* Same LED properties as the statusbar: colour mode, colour and display behaviour. *@
+    <MudSelect T="LedColorMode" Value="led.ColorMode" ValueChanged="OnLedModeChanged" Label="Farbmodus" Margin="Margin.Dense" Dense="true" Class="mt-1">
         <MudSelectItem T="LedColorMode" Value="LedColorMode.Amber">Amber</MudSelectItem>
         <MudSelectItem T="LedColorMode" Value="LedColorMode.Rgb">RGB</MudSelectItem>
     </MudSelect>
@@ -22,6 +23,14 @@
             <VirtualMixerColorPicker Label="LED-Farbe" Value="@led.ColorHex" ValueChanged="OnLedColorChanged" AllowClear="false" ShowSavePreset="false" />
         </div>
     }
+
+    <MudSelect T="LedDisplayMode" Value="led.DisplayMode" ValueChanged="OnLedDisplayModeChanged" Label="LED-Anzeige" Margin="Margin.Dense" Dense="true" Class="mt-1">
+        <MudSelectItem T="LedDisplayMode" Value="LedDisplayMode.Solid">Nur leuchtend</MudSelectItem>
+        <MudSelectItem T="LedDisplayMode" Value="LedDisplayMode.Pulse">Pulsierend</MudSelectItem>
+    </MudSelect>
+
+    <MudSwitch T="bool" Value="Settings.LedFollowsState" ValueChanged="OnLedFollowsChanged" Label="LED leuchtet bei aktivem Zustand" Color="Color.Primary" Class="mt-1" />
+    <MudSwitch T="bool" Value="Settings.LedFillButton" ValueChanged="OnLedFillChanged" Label="LED füllt den ganzen Button" Color="Color.Primary" />
 }
 
 @code {
@@ -40,4 +49,13 @@
 
     private void OnLedColorChanged(string? color) =>
         Context.Update(c => ((ButtonSettings)c.Settings).Led!.ColorHex = color, "button-led-color");
+
+    private void OnLedDisplayModeChanged(LedDisplayMode mode) =>
+        Context.Update(c => ((ButtonSettings)c.Settings).Led!.DisplayMode = mode, "button-led-display");
+
+    private void OnLedFollowsChanged(bool value) =>
+        Context.Update(c => ((ButtonSettings)c.Settings).LedFollowsState = value, "button-led-follows");
+
+    private void OnLedFillChanged(bool value) =>
+        Context.Update(c => ((ButtonSettings)c.Settings).LedFillButton = value, "button-led-fill");
 }

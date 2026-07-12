@@ -12,17 +12,19 @@
         var headerText = ColorUtils.ContrastingTextColor(group.BackgroundColorHex);
         var contentBackground = group.BackgroundColorHex is { } bg ? ColorUtils.ToRgba(bg, 0.13) : "transparent";
 
+        var collapsedWide = group.IsCollapsed && group.EffectiveWidth > MixerGroup.CollapsedWidth;
+
         <div class="vm-group" style="left:@(groupX)px;width:@(group.EffectiveWidth)px;background:@contentBackground;">
             <div class="vm-group-header" style="background:@headerBackground;color:@headerText;@(Ds is not null ? "cursor:pointer;" : "")"
                  @onclick="@(() => OnHeaderClick(group))">
                 @if (Ds is not null)
                 {
-                    <span style="cursor:pointer;display:flex;align-items:center;" title="@(group.IsCollapsed ? "Ausklappen" : "Einklappen")"
+                    <span style="cursor:pointer;display:flex;align-items:center;flex-shrink:0;" title="@(group.IsCollapsed ? "Ausklappen" : "Einklappen")"
                           @onclick="@(() => ToggleCollapse(group))" @onclick:stopPropagation="true">
                         <MudIcon Icon="@(group.IsCollapsed ? Icons.Material.Filled.ChevronRight : Icons.Material.Filled.ExpandMore)" Size="Size.Small" />
                     </span>
                 }
-                @if (!group.IsCollapsed)
+                @if (!group.IsCollapsed || collapsedWide)
                 {
                     <span style="overflow:hidden;text-overflow:ellipsis;">@group.Label</span>
                 }
@@ -30,7 +32,29 @@
 
             @if (group.IsCollapsed)
             {
-                <div class="vm-group-collapsed-label" style="color:@headerText;">@group.Label</div>
+                @* Rotated label only when the lane is narrow (no room for the header label) and
+                   no controls are kept visible - avoids overlapping the chevron/content. *@
+                @if (!collapsedWide && !group.CollapsedVisibleControls.Any())
+                {
+                    <div class="vm-group-collapsed-label" style="color:@headerText;">@group.Label</div>
+                }
+
+                <div class="vm-group-content"
+                     @ondragover:preventDefault="@(Ds?.EditMode == true)"
+                     @ondrop="@(e => OnDrop(e, group))">
+                    @foreach (var control in group.CollapsedVisibleControls)
+                    {
+                        if (!control.IsVisible && Ds?.EditMode != true)
+                        {
+                            continue;
+                        }
+
+                        if (Registry.Find(control.TypeKey) is { } descriptor)
+                        {
+                            <ControlHost @key="control.Id" Control="control" Group="group" Descriptor="descriptor" />
+                        }
+                    }
+                </div>
             }
             else
             {

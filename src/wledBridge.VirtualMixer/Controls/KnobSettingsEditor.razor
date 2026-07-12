@@ -1,4 +1,5 @@
 @namespace wledBridge.VirtualMixer.Controls
+@using wledBridge.VirtualMixer.Components.Internal
 
 <MudSelect T="KnobMode" Value="Settings.Mode" ValueChanged="OnModeChanged" Label="Modus" Margin="Margin.Dense" Dense="true">
     <MudSelectItem T="KnobMode" Value="KnobMode.Absolute">Absolut (0–127)</MudSelectItem>
@@ -18,6 +19,35 @@ else
     </MudText>
 }
 
+<MudSwitch T="bool" Value="Settings.LedRingEnabled" ValueChanged="OnRingToggled" Label="LED-Ring" Color="Color.Primary" Class="mt-2" />
+
+@if (Settings.LedRingEnabled)
+{
+    <MudSelect T="KnobRingSource" Value="Settings.LedRingSource" ValueChanged="OnRingSourceChanged" Label="Ring-Quelle" Margin="Margin.Dense" Dense="true" Class="mt-1">
+        <MudSelectItem T="KnobRingSource" Value="KnobRingSource.KnobValue">Reglerwert</MudSelectItem>
+        <MudSelectItem T="KnobRingSource" Value="KnobRingSource.External">Extern / anderes Steuerelement (Binding)</MudSelectItem>
+    </MudSelect>
+
+    <MudSelect T="LedColorMode" Value="Settings.LedRingColorMode" ValueChanged="OnRingColorModeChanged" Label="Ring-Farbmodus" Margin="Margin.Dense" Dense="true" Class="mt-1">
+        <MudSelectItem T="LedColorMode" Value="LedColorMode.Amber">Amber</MudSelectItem>
+        <MudSelectItem T="LedColorMode" Value="LedColorMode.Rgb">RGB</MudSelectItem>
+    </MudSelect>
+
+    @if (Settings.LedRingColorMode == LedColorMode.Rgb)
+    {
+        <div class="mt-2">
+            <VirtualMixerColorPicker Label="Ring-Farbe" Value="@Settings.LedRingColorHex" ValueChanged="OnRingColorChanged" AllowClear="false" ShowSavePreset="false" />
+        </div>
+    }
+
+    @if (Settings.LedRingSource == KnobRingSource.External)
+    {
+        <MudText Typo="Typo.caption" Style="opacity:0.7;" Class="mt-1">
+            Ring-Wert per Binding von einem anderen Steuerelement setzen (Ziel-Aspekt "LED-Ring") oder extern über die API (Sub-Index 0).
+        </MudText>
+    }
+}
+
 @code {
     [Parameter] public required ControlEditContext Context { get; set; }
 
@@ -28,4 +58,16 @@ else
 
     private void OnCurveChanged(Curve curve) =>
         Context.Update(c => ((KnobSettings)c.Settings).Curve = curve, "knob-curve");
+
+    private void OnRingToggled(bool value) =>
+        Context.Update(c => ((KnobSettings)c.Settings).LedRingEnabled = value, "knob-ring");
+
+    private void OnRingSourceChanged(KnobRingSource source) =>
+        Context.Update(c => ((KnobSettings)c.Settings).LedRingSource = source, "knob-ring-source");
+
+    private void OnRingColorModeChanged(LedColorMode mode) =>
+        Context.Update(c => ((KnobSettings)c.Settings).LedRingColorMode = mode, "knob-ring-mode");
+
+    private void OnRingColorChanged(string? color) =>
+        Context.Update(c => ((KnobSettings)c.Settings).LedRingColorHex = color, "knob-ring-color");
 }

@@ -21,6 +21,25 @@ public enum LedColorMode
     Rgb
 }
 
+/// <summary>
+/// How a lit element (statusbar / button LED) renders its value. Shared by statusbar and the
+/// button status LED so both offer the same visual behaviour.
+/// </summary>
+public enum LedDisplayMode
+{
+    /// <summary>Fill proportional to the value with a hard edge (classic bar).</summary>
+    Bar,
+
+    /// <summary>Fill proportional to the value, fading out towards the leading edge.</summary>
+    Fade,
+
+    /// <summary>Whole element lit; brightness scales with the value.</summary>
+    Solid,
+
+    /// <summary>Whole element pulsing; the value scales the pulse intensity.</summary>
+    Pulse
+}
+
 // ---------------------------------------------------------------------------- Button
 
 public enum ButtonMode
@@ -41,12 +60,21 @@ public class LedConfig
 
     /// <summary>Configured color for <see cref="LedColorMode.Rgb"/> (hex, e.g. "#FF0000").</summary>
     public string? ColorHex { get; set; }
+
+    /// <summary>Same set of display behaviours as the statusbar (Solid/Pulse most useful here).</summary>
+    public LedDisplayMode DisplayMode { get; set; } = LedDisplayMode.Solid;
 }
 
 public class ButtonSettings : ControlSettingsBase
 {
     public ButtonMode Mode { get; set; } = ButtonMode.Momentary;
     public LedConfig? Led { get; set; }
+
+    /// <summary>When true, the LED lights automatically while the button is active (no external command needed).</summary>
+    public bool LedFollowsState { get; set; }
+
+    /// <summary>When true, the LED colour glows across the whole button instead of a corner dot.</summary>
+    public bool LedFillButton { get; set; }
 }
 
 // ---------------------------------------------------------------------------- Fader
@@ -64,6 +92,9 @@ public class StatusbarSettings : ControlSettingsBase
     public LedColorMode ColorMode { get; set; } = LedColorMode.Amber;
     public string? ColorHex { get; set; }
     public ControlOrientation Orientation { get; set; } = ControlOrientation.Horizontal;
+
+    /// <summary>Bar (proportional), Fade (gradient), Solid (whole lit) or Pulse (pulsing).</summary>
+    public LedDisplayMode DisplayMode { get; set; } = LedDisplayMode.Bar;
 }
 
 // ---------------------------------------------------------------------------- Knob
@@ -77,10 +108,57 @@ public enum KnobMode
     Relative
 }
 
+/// <summary>What drives a knob's optional LED ring.</summary>
+public enum KnobRingSource
+{
+    /// <summary>The ring follows the knob's own value.</summary>
+    KnobValue,
+
+    /// <summary>The ring shows an independent value, set externally or via a binding (sub-index 0).</summary>
+    External
+}
+
 public class KnobSettings : ControlSettingsBase
 {
     public KnobMode Mode { get; set; } = KnobMode.Absolute;
     public Curve Curve { get; set; } = new();
+
+    /// <summary>Optional LED ring drawn around the knob.</summary>
+    public bool LedRingEnabled { get; set; }
+    public LedColorMode LedRingColorMode { get; set; } = LedColorMode.Amber;
+    public string? LedRingColorHex { get; set; }
+    public KnobRingSource LedRingSource { get; set; } = KnobRingSource.KnobValue;
+}
+
+// ---------------------------------------------------------------------------- Line
+
+public class LineSettings : ControlSettingsBase
+{
+    public ControlOrientation Orientation { get; set; } = ControlOrientation.Horizontal;
+
+    /// <summary>Line thickness in logical pixels.</summary>
+    public int Thickness { get; set; } = 3;
+
+    /// <summary>Line colour; null falls back to the theme's default line colour.</summary>
+    public string? ColorHex { get; set; }
+}
+
+// ---------------------------------------------------------------------------- Label
+
+public class LabelSettings : ControlSettingsBase
+{
+    /// <summary>Text colour; null falls back to the theme's primary text colour.</summary>
+    public string? ColorHex { get; set; }
+
+    public int FontSize { get; set; } = 14;
+
+    /// <summary>CSS font-family; null falls back to the theme font.</summary>
+    public string? FontFamily { get; set; }
+
+    public bool Bold { get; set; }
+
+    /// <summary>CSS text-align: left / center / right.</summary>
+    public string TextAlign { get; set; } = "center";
 }
 
 // ---------------------------------------------------------------------------- Knob bank

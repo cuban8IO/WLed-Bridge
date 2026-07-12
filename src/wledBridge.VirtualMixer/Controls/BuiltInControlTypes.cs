@@ -8,6 +8,8 @@ public static class BuiltInControlTypes
     public const string Statusbar = "statusbar";
     public const string Knob = "knob";
     public const string KnobBank = "knobbank";
+    public const string Line = "line";
+    public const string Label = "label";
 
     /// <summary>Descriptor types registered by <c>AddVirtualMixer()</c>.</summary>
     internal static readonly IReadOnlyList<Type> Descriptors =
@@ -16,6 +18,8 @@ public static class BuiltInControlTypes
         typeof(FaderDescriptor),
         typeof(StatusbarDescriptor),
         typeof(KnobDescriptor),
-        typeof(KnobBankDescriptor)
+        typeof(KnobBankDescriptor),
+        typeof(LineDescriptor),
+        typeof(LabelDescriptor)
     ];
 }

@@ -1,0 +1,30 @@
+@namespace wledBridge.VirtualMixer.Controls
+@inherits ControlRendererBase
+
+<div style="@LabelStyle">@DisplayText</div>
+
+@code {
+    private LabelSettings Settings => (LabelSettings)Instance.Settings;
+
+    private string DisplayText => string.IsNullOrEmpty(Instance.Label) ? "Label" : Instance.Label;
+
+    private string LabelStyle
+    {
+        get
+        {
+            var color = Settings.ColorHex ?? "var(--mud-palette-text-primary, #fff)";
+            var font = Settings.FontFamily is { Length: > 0 } f ? $"font-family:{f};" : "";
+            var weight = Settings.Bold ? "font-weight:700;" : "";
+            return $"width:100%;height:100%;display:flex;align-items:center;justify-content:{Justify};" +
+                   $"text-align:{Settings.TextAlign};color:{color};font-size:{Settings.FontSize}px;line-height:1.15;" +
+                   $"overflow:hidden;{font}{weight}";
+        }
+    }
+
+    private string Justify => Settings.TextAlign switch
+    {
+        "left" => "flex-start",
+        "right" => "flex-end",
+        _ => "center"
+    };
+}

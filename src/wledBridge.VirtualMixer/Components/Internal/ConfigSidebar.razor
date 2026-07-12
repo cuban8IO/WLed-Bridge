@@ -51,6 +51,8 @@
             <MudSwitch T="bool" Value="@control.IsEnabled" ValueChanged="@(v => Update(c => c.IsEnabled = v, "enabled"))"
                        Label="Aktiviert" Color="Color.Primary" />
         </div>
+        <MudSwitch T="bool" Value="@control.KeepVisibleWhenCollapsed" ValueChanged="@(v => Update(c => c.KeepVisibleWhenCollapsed = v, "keepvisible"))"
+                   Label="Sichtbar bei eingeklappter Gruppe" Color="Color.Primary" />
 
         @if (descriptor is not null)
         {
@@ -71,6 +73,16 @@
                         <MudSelectItem T="Guid" Value="@source.Id">@source.Name</MudSelectItem>
                     }
                 </MudSelect>
+
+                @if (control.Settings is KnobSettings { LedRingEnabled: true, LedRingSource: KnobRingSource.External })
+                {
+                    <MudSelect T="int" Value="@(current.TargetSubIndex ?? -1)"
+                               ValueChanged="@(v => UpdateBinding(current.Id, b => b.TargetSubIndex = v < 0 ? null : v))"
+                               Label="Ziel-Aspekt" Margin="Margin.Dense" Dense="true" Class="mt-1">
+                        <MudSelectItem T="int" Value="@(-1)">Reglerwert</MudSelectItem>
+                        <MudSelectItem T="int" Value="@(0)">LED-Ring</MudSelectItem>
+                    </MudSelect>
+                }
 
                 <MudSelect T="BindingTransformType" Value="@current.Transform.Type"
                            ValueChanged="@(v => UpdateBinding(current.Id, b => b.Transform.Type = v))"
