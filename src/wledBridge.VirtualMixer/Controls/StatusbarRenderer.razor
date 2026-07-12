@@ -1,0 +1,29 @@
+@namespace wledBridge.VirtualMixer.Controls
+@using wledBridge.VirtualMixer.Components.Internal
+@inherits ControlRendererBase
+
+<div class="vm-statusbar @(Settings.Orientation == ControlOrientation.Vertical ? "vertical" : "horizontal")">
+    <div class="vm-statusbar-fill" style="@FillStyle"></div>
+</div>
+
+@code {
+    private StatusbarSettings Settings => (StatusbarSettings)Instance.Settings;
+
+    private string FillStyle
+    {
+        get
+        {
+            var value = State?.Value ?? 0;
+            var percent = value / 127.0 * 100.0;
+            var color = Settings.ColorMode == LedColorMode.Rgb
+                ? State?.LedColorHex ?? Settings.ColorHex ?? ColorUtils.AmberHex
+                : ColorUtils.AmberHex;
+
+            var size = Settings.Orientation == ControlOrientation.Vertical
+                ? $"height:{percent.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)}%;"
+                : $"width:{percent.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)}%;";
+
+            return $"{size}background:{color};box-shadow:0 0 8px {ColorUtils.ToRgba(color, 0.5)};";
+        }
+    }
+}

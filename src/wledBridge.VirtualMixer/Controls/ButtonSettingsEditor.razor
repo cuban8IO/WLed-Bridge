@@ -1,0 +1,43 @@
+@namespace wledBridge.VirtualMixer.Controls
+@using wledBridge.VirtualMixer.Components.Internal
+
+<MudSelect T="ButtonMode" Value="Settings.Mode" ValueChanged="OnModeChanged" Label="Modus" Margin="Margin.Dense" Dense="true">
+    <MudSelectItem T="ButtonMode" Value="ButtonMode.Momentary">Momentary (aktiv solange gedrückt)</MudSelectItem>
+    <MudSelectItem T="ButtonMode" Value="ButtonMode.Toggle">Toggle (Zustand wechselt)</MudSelectItem>
+    <MudSelectItem T="ButtonMode" Value="ButtonMode.Trigger">Trigger (nur Event)</MudSelectItem>
+</MudSelect>
+
+<MudSwitch T="bool" Value="@(Settings.Led is not null)" ValueChanged="OnLedToggled" Label="Status-LED" Color="Color.Primary" Class="mt-2" />
+
+@if (Settings.Led is { } led)
+{
+    <MudSelect T="LedColorMode" Value="led.ColorMode" ValueChanged="OnLedModeChanged" Label="LED-Modus" Margin="Margin.Dense" Dense="true" Class="mt-1">
+        <MudSelectItem T="LedColorMode" Value="LedColorMode.Amber">Amber</MudSelectItem>
+        <MudSelectItem T="LedColorMode" Value="LedColorMode.Rgb">RGB</MudSelectItem>
+    </MudSelect>
+
+    @if (led.ColorMode == LedColorMode.Rgb)
+    {
+        <div class="mt-2">
+            <VirtualMixerColorPicker Label="LED-Farbe" Value="@led.ColorHex" ValueChanged="OnLedColorChanged" AllowClear="false" />
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public required ControlEditContext Context { get; set; }
+
+    private ButtonSettings Settings => (ButtonSettings)Context.Instance.Settings;
+
+    private void OnModeChanged(ButtonMode mode) =>
+        Context.Update(c => ((ButtonSettings)c.Settings).Mode = mode, "button-mode");
+
+    private void OnLedToggled(bool enabled) =>
+        Context.Update(c => ((ButtonSettings)c.Settings).Led = enabled ? new LedConfig() : null, "button-led");
+
+    private void OnLedModeChanged(LedColorMode mode) =>
+        Context.Update(c => ((ButtonSettings)c.Settings).Led!.ColorMode = mode, "button-led-mode");
+
+    private void OnLedColorChanged(string? color) =>
+        Context.Update(c => ((ButtonSettings)c.Settings).Led!.ColorHex = color, "button-led-color");
+}

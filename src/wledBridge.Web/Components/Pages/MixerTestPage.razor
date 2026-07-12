@@ -1,0 +1,16 @@
+@page "/mixer/test/{MixerId:guid}"
+@using wledBridge.VirtualMixer.Components
+
+<PageTitle>Mixer-Testansicht</PageTitle>
+
+<MudText Typo="Typo.h3" GutterBottom="true">Mixer-Testansicht</MudText>
+<MudText Typo="Typo.body1" Class="mb-4">
+    Dieselbe Runtime-Komponente wie überall - ohne Designer-Funktionen. Die Simulation speist
+    Werte über die öffentliche Modul-API ein.
+</MudText>
+
+<VirtualMixerTestView MixerId="@MixerId" />
+
+@code {
+    [Parameter] public Guid MixerId { get; set; }
+}

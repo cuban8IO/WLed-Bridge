@@ -1,0 +1,70 @@
+@namespace wledBridge.VirtualMixer.Controls
+@using wledBridge.VirtualMixer.Components.Internal
+
+<MudNumericField T="int" Value="Settings.Count" ValueChanged="OnCountChanged" Label="Anzahl Regler" Min="1" Max="16" Margin="Margin.Dense" />
+
+<MudSelect T="KnobBankLayout" Value="Settings.Layout" ValueChanged="OnLayoutChanged" Label="Layout" Margin="Margin.Dense" Dense="true" Class="mt-1">
+    <MudSelectItem T="KnobBankLayout" Value="KnobBankLayout.Auto">Automatische Matrix</MudSelectItem>
+    <MudSelectItem T="KnobBankLayout" Value="KnobBankLayout.FixedColumns">Feste Spaltenanzahl</MudSelectItem>
+    <MudSelectItem T="KnobBankLayout" Value="KnobBankLayout.FixedRows">Feste Zeilenanzahl</MudSelectItem>
+    <MudSelectItem T="KnobBankLayout" Value="KnobBankLayout.Horizontal">Horizontal</MudSelectItem>
+    <MudSelectItem T="KnobBankLayout" Value="KnobBankLayout.Vertical">Vertikal</MudSelectItem>
+</MudSelect>
+
+@if (Settings.Layout == KnobBankLayout.FixedColumns)
+{
+    <MudNumericField T="int" Value="Settings.FixedColumns" ValueChanged="OnColumnsChanged" Label="Spalten" Min="1" Max="16" Margin="Margin.Dense" Class="mt-1" />
+}
+@if (Settings.Layout == KnobBankLayout.FixedRows)
+{
+    <MudNumericField T="int" Value="Settings.FixedRows" ValueChanged="OnRowsChanged" Label="Zeilen" Min="1" Max="16" Margin="Margin.Dense" Class="mt-1" />
+}
+
+<MudSelect T="KnobMode" Value="Settings.Mode" ValueChanged="OnModeChanged" Label="Modus (alle Regler)" Margin="Margin.Dense" Dense="true" Class="mt-1">
+    <MudSelectItem T="KnobMode" Value="KnobMode.Absolute">Absolut (0–127)</MudSelectItem>
+    <MudSelectItem T="KnobMode" Value="KnobMode.Relative">Relativ (Endlos)</MudSelectItem>
+</MudSelect>
+
+<div class="mt-2">
+    <CurveEditor Curve="Settings.Curve" CurveChanged="OnCurveChanged" />
+</div>
+
+<MudText Typo="Typo.caption" Class="mt-3 mb-1" Style="display:block;">Einzelne Regler</MudText>
+@for (var i = 0; i < Settings.Count; i++)
+{
+    var index = i;
+    var item = index < Settings.Knobs.Count ? Settings.Knobs[index] : null;
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+        <MudText Typo="Typo.caption" Style="width:20px;">@(index + 1)</MudText>
+        <MudTextField T="string" Value="@(item?.Label)" ValueChanged="@(v => OnKnobLabelChanged(index, v))"
+                      Placeholder="Label" Margin="Margin.Dense" Style="max-width:110px;" />
+        <VirtualMixerColorPicker Label="" Value="@(item?.ColorHex)" ValueChanged="@(v => OnKnobColorChanged(index, v))" />
+    </div>
+}
+
+@code {
+    [Parameter] public required ControlEditContext Context { get; set; }
+
+    private KnobBankSettings Settings => (KnobBankSettings)Context.Instance.Settings;
+
+    private void Update(Action<KnobBankSettings> mutate, string key) =>
+        Context.Update(c =>
+        {
+            var settings = (KnobBankSettings)c.Settings;
+            mutate(settings);
+            settings.EnsureKnobItems();
+        }, key);
+
+    private void OnCountChanged(int count) => Update(s => s.Count = count, "bank-count");
+    private void OnLayoutChanged(KnobBankLayout layout) => Update(s => s.Layout = layout, "bank-layout");
+    private void OnColumnsChanged(int columns) => Update(s => s.FixedColumns = columns, "bank-columns");
+    private void OnRowsChanged(int rows) => Update(s => s.FixedRows = rows, "bank-rows");
+    private void OnModeChanged(KnobMode mode) => Update(s => s.Mode = mode, "bank-mode");
+    private void OnCurveChanged(Curve curve) => Update(s => s.Curve = curve, "bank-curve");
+
+    private void OnKnobLabelChanged(int index, string? label) =>
+        Update(s => s.Knobs[index].Label = label, $"bank-knob-label-{index}");
+
+    private void OnKnobColorChanged(int index, string? color) =>
+        Update(s => s.Knobs[index].ColorHex = color, $"bank-knob-color-{index}");
+}

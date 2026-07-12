@@ -1,0 +1,178 @@
+@namespace wledBridge.VirtualMixer.Components
+@using wledBridge.VirtualMixer.Components.Internal
+@using wledBridge.VirtualMixer.State
+@implements IAsyncDisposable
+@inject IVirtualMixerManager Manager
+@inject IJSRuntime JS
+
+@* Public runtime component: shows the active mixer (or an explicit one) - view/interact only,
+   no designer functions. *@
+
+@if (_definition is null)
+{
+    <MudText Typo="Typo.body2" Class="pa-4" Style="opacity:0.7;">
+        @(MixerId is null ? "Kein aktiver Mixer." : "Mixer nicht gefunden.")
+    </MudText>
+}
+else
+{
+    <div @ref="_container" class="vm-outer @OuterClass" style="@OuterStyle">
+        <div class="vm-scale-wrapper" style="width:@(ScaledWidth)px;height:@(ScaledHeight)px;">
+            <div style="transform:scale(@ScaleCss);transform-origin:top left;">
+                <CascadingValue Name="VmScale" Value="_scale">
+                    <MixerSurface Definition="_definition" />
+                </CascadingValue>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>Explicit mixer to display; null shows the active mixer (follows activation).</summary>
+    [Parameter] public Guid? MixerId { get; set; }
+
+    [Parameter] public MixerSizing Sizing { get; set; } = MixerSizing.Natural;
+
+    [Parameter] public int FixedWidth { get; set; } = 800;
+
+    [Parameter] public int FixedHeight { get; set; } = 400;
+
+    [Inject] internal MixerRuntimeState Runtime { get; set; } = default!;
+
+    private MixerDefinition? _definition;
+    private ElementReference _container;
+    private double _scale = 1.0;
+    private IJSObjectReference? _module;
+    private IJSObjectReference? _resizeObserver;
+    private DotNetObjectReference<VirtualMixer>? _selfRef;
+    private bool _observerAttached;
+    private Guid? _loadedMixerId;
+
+    private string OuterClass => Sizing is MixerSizing.FitToContainer
+        ? "vm-fit-container"
+        : Sizing is MixerSizing.Natural ? "" : "vm-scroll";
+
+    private string OuterStyle => Sizing switch
+    {
+        MixerSizing.FixedWidth => $"width:{FixedWidth}px;",
+        MixerSizing.FixedHeight => $"height:{FixedHeight}px;",
+        MixerSizing.Fixed => $"width:{FixedWidth}px;height:{FixedHeight}px;",
+        _ => ""
+    };
+
+    private int ScaledWidth => (int)Math.Round((_definition?.LogicalWidth ?? 0) * _scale);
+    private int ScaledHeight => (int)Math.Round((_definition?.LogicalHeight ?? 0) * _scale);
+    private string ScaleCss => _scale.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
+
+    protected override async Task OnInitializedAsync()
+    {
+        Manager.ActiveMixerChanged += OnActiveMixerChanged;
+        Manager.MixersChanged += OnMixersChanged;
+        await LoadAsync();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadedMixerId != MixerId)
+        {
+            await LoadAsync();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _loadedMixerId = MixerId;
+        _definition = MixerId is { } id
+            ? await Manager.GetMixerAsync(id)
+            : await Manager.GetActiveMixerAsync();
+
+        if (_definition is not null)
+        {
+            Runtime.RegisterMixer(_definition);
+        }
+    }
+
+    private void OnActiveMixerChanged(object? sender, Events.MixerActivatedEventArgs e)
+    {
+        if (MixerId is null)
+        {
+            _ = InvokeAsync(async () =>
+            {
+                await LoadAsync();
+                StateHasChanged();
+            });
+        }
+    }
+
+    private void OnMixersChanged(object? sender, EventArgs e) => _ = InvokeAsync(async () =>
+    {
+        await LoadAsync();
+        StateHasChanged();
+    });
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/wledBridge.VirtualMixer/virtualmixer.js");
+            await _module.InvokeVoidAsync("ensureStyles");
+        }
+
+        if (Sizing == MixerSizing.FitToContainer && !_observerAttached && _definition is not null && _module is not null)
+        {
+            _observerAttached = true;
+            _selfRef = DotNetObjectReference.Create(this);
+
+            // Compute the initial scale immediately from the current container rect - the
+            // ResizeObserver then handles later size changes. This keeps fit-to-container
+            // correct even where ResizeObserver's initial callback is delayed or unavailable.
+            var rect = await _module.InvokeAsync<ContainerRect>("getRect", _container);
+            OnContainerResized(rect.Width, rect.Height);
+
+            _resizeObserver = await _module.InvokeAsync<IJSObjectReference>("observeResize", _container, _selfRef);
+        }
+    }
+
+    private sealed record ContainerRect(double Left, double Top, double Width, double Height);
+
+    [JSInvokable]
+    public void OnContainerResized(double width, double height)
+    {
+        if (_definition is null || width <= 0 || height <= 0)
+        {
+            return;
+        }
+
+        var scale = Math.Min(width / _definition.LogicalWidth, height / _definition.LogicalHeight);
+        if (Math.Abs(scale - _scale) > 0.001)
+        {
+            _scale = scale;
+            StateHasChanged();
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        Manager.ActiveMixerChanged -= OnActiveMixerChanged;
+        Manager.MixersChanged -= OnMixersChanged;
+
+        try
+        {
+            if (_resizeObserver is not null)
+            {
+                await _resizeObserver.InvokeVoidAsync("dispose");
+                await _resizeObserver.DisposeAsync();
+            }
+
+            if (_module is not null)
+            {
+                await _module.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+
+        _selfRef?.Dispose();
+    }
+}

@@ -1,0 +1,14 @@
+@page "/mixer"
+@using wledBridge.VirtualMixer.Components
+@inject NavigationManager Navigation
+
+<PageTitle>Virtual Mixer</PageTitle>
+
+<MudText Typo="Typo.h3" GutterBottom="true">Virtual Mixer</MudText>
+<MudText Typo="Typo.body1" Class="mb-4">
+    Verwaltung der virtuellen Mixer. Es ist immer höchstens ein Mixer aktiv - der aktive Mixer
+    wird auf der <MudLink Href="mixer/live">Live-Ansicht</MudLink> angezeigt und ist extern steuerbar.
+</MudText>
+
+<VirtualMixerManager OnOpenDesigner="@(id => Navigation.NavigateTo($"mixer/designer/{id}"))"
+                     OnOpenTest="@(id => Navigation.NavigateTo($"mixer/test/{id}"))" />

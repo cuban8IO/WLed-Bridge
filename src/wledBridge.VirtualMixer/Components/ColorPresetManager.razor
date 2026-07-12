@@ -1,0 +1,113 @@
+@namespace wledBridge.VirtualMixer.Components
+@implements IDisposable
+@inject IColorPresetService Presets
+@inject ISnackbar Snackbar
+
+<MudPaper Class="pa-4" Elevation="2">
+    <MudText Typo="Typo.h6" Class="mb-2">Farb-Presets</MudText>
+
+    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Class="mb-3">
+        <input type="color" @bind="_newColor" style="width:38px;height:32px;border:none;background:none;padding:0;cursor:pointer;" />
+        <MudTextField T="string" @bind-Value="_newName" Placeholder="Name" Margin="Margin.Dense" Style="max-width:180px;" />
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" OnClick="Add"
+                   Disabled="@(string.IsNullOrWhiteSpace(_newName))">Hinzufügen</MudButton>
+    </MudStack>
+
+    @if (_presets.Count == 0)
+    {
+        <MudText Typo="Typo.body2" Style="opacity:0.7;">Noch keine Presets gespeichert.</MudText>
+    }
+    else
+    {
+        <MudTable Items="_presets" Dense="true">
+            <HeaderContent>
+                <MudTh>Farbe</MudTh>
+                <MudTh>Name</MudTh>
+                <MudTh>Favorit</MudTh>
+                <MudTh>Sortierung</MudTh>
+                <MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>
+                    <input type="color" value="@context.ColorHex"
+                           @onchange="@(e => UpdateColor(context, e.Value?.ToString()))"
+                           style="width:34px;height:28px;border:none;background:none;padding:0;cursor:pointer;" />
+                </MudTd>
+                <MudTd>
+                    <MudTextField T="string" Value="@context.Name" ValueChanged="@(v => UpdateName(context, v))"
+                                  Margin="Margin.Dense" Style="max-width:200px;" />
+                </MudTd>
+                <MudTd>
+                    <MudIconButton Icon="@(context.IsFavorite ? Icons.Material.Filled.Star : Icons.Material.Outlined.StarBorder)"
+                                   Size="Size.Small" Color="@(context.IsFavorite ? Color.Warning : Color.Default)"
+                                   OnClick="@(() => ToggleFavorite(context))" />
+                </MudTd>
+                <MudTd>
+                    <MudNumericField T="int" Value="@context.Order" ValueChanged="@(v => UpdateOrder(context, v))"
+                                     Margin="Margin.Dense" Style="max-width:80px;" />
+                </MudTd>
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                   OnClick="@(() => Delete(context))" />
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+</MudPaper>
+
+@code {
+    private IReadOnlyList<ColorPreset> _presets = [];
+    private string _newColor = "#01FF95";
+    private string _newName = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        Presets.Changed += OnChanged;
+        _presets = await Presets.GetPresetsAsync();
+    }
+
+    private void OnChanged(object? sender, EventArgs e) => _ = InvokeAsync(async () =>
+    {
+        _presets = await Presets.GetPresetsAsync();
+        StateHasChanged();
+    });
+
+    private async Task Add()
+    {
+        await Presets.SavePresetAsync(new ColorPreset { Name = _newName.Trim(), ColorHex = _newColor });
+        Snackbar.Add($"Preset '{_newName.Trim()}' gespeichert", Severity.Success);
+        _newName = "";
+    }
+
+    private Task UpdateColor(ColorPreset preset, string? color)
+    {
+        preset.ColorHex = color ?? preset.ColorHex;
+        return Presets.SavePresetAsync(preset);
+    }
+
+    private Task UpdateName(ColorPreset preset, string name)
+    {
+        preset.Name = name;
+        return Presets.SavePresetAsync(preset);
+    }
+
+    private Task ToggleFavorite(ColorPreset preset)
+    {
+        preset.IsFavorite = !preset.IsFavorite;
+        return Presets.SavePresetAsync(preset);
+    }
+
+    private Task UpdateOrder(ColorPreset preset, int order)
+    {
+        preset.Order = order;
+        return Presets.SavePresetAsync(preset);
+    }
+
+    private async Task Delete(ColorPreset preset)
+    {
+        await Presets.DeletePresetAsync(preset.Id);
+        Snackbar.Add($"'{preset.Name}' gelöscht", Severity.Success);
+    }
+
+    public void Dispose() => Presets.Changed -= OnChanged;
+}

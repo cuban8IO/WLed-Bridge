@@ -1,0 +1,31 @@
+@namespace wledBridge.VirtualMixer.Controls
+
+<MudSelect T="KnobMode" Value="Settings.Mode" ValueChanged="OnModeChanged" Label="Modus" Margin="Margin.Dense" Dense="true">
+    <MudSelectItem T="KnobMode" Value="KnobMode.Absolute">Absolut (0–127)</MudSelectItem>
+    <MudSelectItem T="KnobMode" Value="KnobMode.Relative">Relativ (Endlos, Delta-Events)</MudSelectItem>
+</MudSelect>
+
+@if (Settings.Mode == KnobMode.Absolute)
+{
+    <div class="mt-2">
+        <CurveEditor Curve="Settings.Curve" CurveChanged="OnCurveChanged" />
+    </div>
+}
+else
+{
+    <MudText Typo="Typo.caption" Class="mt-2">
+        Im Relativ-Modus ist der Regler zustandslos: Drehen erzeugt Delta-Events, externe Wert-Kommandos werden ignoriert.
+    </MudText>
+}
+
+@code {
+    [Parameter] public required ControlEditContext Context { get; set; }
+
+    private KnobSettings Settings => (KnobSettings)Context.Instance.Settings;
+
+    private void OnModeChanged(KnobMode mode) =>
+        Context.Update(c => ((KnobSettings)c.Settings).Mode = mode, "knob-mode");
+
+    private void OnCurveChanged(Curve curve) =>
+        Context.Update(c => ((KnobSettings)c.Settings).Curve = curve, "knob-curve");
+}

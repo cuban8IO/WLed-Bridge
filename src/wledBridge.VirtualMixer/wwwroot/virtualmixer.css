@@ -1,0 +1,325 @@
+/* Virtual Mixer module styles (injected once by virtualmixer.js/ensureStyles). */
+
+.vm-outer {
+    position: relative;
+}
+
+.vm-outer.vm-scroll {
+    overflow: auto;
+}
+
+.vm-fit-container {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+.vm-scale-wrapper {
+    transform-origin: top left;
+}
+
+.vm-surface {
+    position: relative;
+    background: var(--mud-palette-background, #121212);
+    border: 1px solid var(--mud-palette-lines-default, #333);
+    border-radius: 4px;
+    overflow: hidden;
+    user-select: none;
+    touch-action: none;
+}
+
+/* ------------------------------------------------ groups (lanes) */
+
+.vm-group {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    border-right: 1px solid var(--mud-palette-lines-default, #333);
+    box-sizing: border-box;
+}
+
+.vm-group-header {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 6px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    z-index: 5;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.vm-group-content {
+    position: absolute;
+    top: 22px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+}
+
+.vm-group-collapsed-label {
+    position: absolute;
+    top: 30px;
+    left: 50%;
+    transform: translateX(-50%) rotate(90deg);
+    transform-origin: center;
+    white-space: nowrap;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    opacity: 0.85;
+}
+
+/* ------------------------------------------------ controls */
+
+.vm-control {
+    position: absolute;
+    box-sizing: border-box;
+}
+
+.vm-control.vm-disabled {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+.vm-control.vm-overlap {
+    outline: 2px dashed var(--mud-palette-warning, #ffb545);
+    outline-offset: 1px;
+}
+
+.vm-control.vm-selected {
+    outline: 2px solid var(--mud-palette-primary, #01FF95);
+    outline-offset: 1px;
+}
+
+.vm-control-label {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -16px;
+    text-align: center;
+    font-size: 10px;
+    line-height: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+    color: var(--mud-palette-text-secondary, #aaa);
+}
+
+/* ------------------------------------------------ designer adorners */
+
+.vm-wrench {
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--mud-palette-primary, #01FF95);
+    color: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 20;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+.vm-wrench svg {
+    width: 13px;
+    height: 13px;
+    fill: currentColor;
+}
+
+.vm-handle {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: var(--mud-palette-primary, #01FF95);
+    border: 1px solid #000;
+    z-index: 15;
+}
+
+.vm-handle.nw { top: -4px; left: -4px; cursor: nwse-resize; }
+.vm-handle.n  { top: -4px; left: calc(50% - 4px); cursor: ns-resize; }
+.vm-handle.ne { top: -4px; right: -4px; cursor: nesw-resize; }
+.vm-handle.e  { top: calc(50% - 4px); right: -4px; cursor: ew-resize; }
+.vm-handle.se { bottom: -4px; right: -4px; cursor: nwse-resize; }
+.vm-handle.s  { bottom: -4px; left: calc(50% - 4px); cursor: ns-resize; }
+.vm-handle.sw { bottom: -4px; left: -4px; cursor: nesw-resize; }
+.vm-handle.w  { top: calc(50% - 4px); left: -4px; cursor: ew-resize; }
+
+.vm-snapline {
+    position: absolute;
+    background: var(--mud-palette-info, #2196f3);
+    z-index: 30;
+    pointer-events: none;
+}
+
+.vm-snapline.v { width: 1px; top: 0; bottom: 0; }
+.vm-snapline.h { height: 1px; left: 0; right: 0; }
+
+.vm-rubberband {
+    position: absolute;
+    border: 1px dashed var(--mud-palette-primary, #01FF95);
+    background: rgba(1, 255, 149, 0.08);
+    z-index: 40;
+    pointer-events: none;
+}
+
+/* ------------------------------------------------ built-in controls */
+
+.vm-button {
+    width: 100%;
+    height: 100%;
+    border-radius: 6px;
+    border: 1px solid var(--mud-palette-lines-default, #444);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    font-weight: 600;
+    text-align: center;
+    padding: 2px;
+    box-sizing: border-box;
+}
+
+.vm-button.vm-on {
+    box-shadow: inset 0 0 12px rgba(255, 255, 255, 0.25);
+    filter: brightness(1.35);
+}
+
+.vm-button-led {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: 1px solid rgba(0, 0, 0, 0.5);
+}
+
+.vm-fader {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+.vm-fader-track {
+    position: absolute;
+    background: var(--mud-palette-lines-default, #444);
+    border-radius: 3px;
+}
+
+.vm-fader.vertical .vm-fader-track {
+    left: calc(50% - 3px);
+    top: 6px;
+    bottom: 6px;
+    width: 6px;
+}
+
+.vm-fader.horizontal .vm-fader-track {
+    top: calc(50% - 3px);
+    left: 6px;
+    right: 6px;
+    height: 6px;
+}
+
+.vm-fader-thumb {
+    position: absolute;
+    background: var(--mud-palette-primary, #01FF95);
+    border-radius: 3px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+.vm-fader.vertical .vm-fader-thumb {
+    left: calc(50% - 12px);
+    width: 24px;
+    height: 12px;
+    bottom: calc(var(--vm-pos, 0) * (100% - 12px));
+}
+
+.vm-fader.horizontal .vm-fader-thumb {
+    top: calc(50% - 12px);
+    height: 24px;
+    width: 12px;
+    left: calc(var(--vm-pos, 0) * (100% - 12px));
+}
+
+.vm-statusbar {
+    width: 100%;
+    height: 100%;
+    border-radius: 3px;
+    border: 1px solid var(--mud-palette-lines-default, #444);
+    position: relative;
+    overflow: hidden;
+    background: rgba(0, 0, 0, 0.4);
+}
+
+.vm-statusbar-fill {
+    position: absolute;
+    transition: width 60ms linear, height 60ms linear;
+}
+
+.vm-statusbar.horizontal .vm-statusbar-fill {
+    left: 0;
+    top: 0;
+    bottom: 0;
+}
+
+.vm-statusbar.vertical .vm-statusbar-fill {
+    left: 0;
+    right: 0;
+    bottom: 0;
+}
+
+.vm-knob {
+    width: 100%;
+    height: 100%;
+    cursor: ns-resize;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.vm-knobbank {
+    width: 100%;
+    height: 100%;
+    display: grid;
+    box-sizing: border-box;
+    border-radius: 6px;
+    padding: 4px;
+    gap: 2px;
+}
+
+.vm-knobbank-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    min-height: 0;
+}
+
+.vm-knobbank-item .vm-mini-label {
+    font-size: 9px;
+    line-height: 11px;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--mud-palette-text-secondary, #aaa);
+}

@@ -1,0 +1,11 @@
+@page "/mixer/live"
+@using wledBridge.VirtualMixer.Components
+
+<PageTitle>Mixer Live</PageTitle>
+
+<MudText Typo="Typo.h3" GutterBottom="true">Live</MudText>
+<MudText Typo="Typo.body1" Class="mb-4">Der aktive Mixer, skaliert auf die verfügbare Fläche.</MudText>
+
+<div style="height: calc(100vh - 220px); min-height: 300px;">
+    <VirtualMixer Sizing="MixerSizing.FitToContainer" />
+</div>

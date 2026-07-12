@@ -1,0 +1,120 @@
+@namespace wledBridge.VirtualMixer.Components.Internal
+@using wledBridge.VirtualMixer.Designer
+@inject ControlRegistry Registry
+
+<div @ref="_element" class="vm-surface"
+     style="width:@(Definition.LogicalWidth)px;height:@(Definition.LogicalHeight)px;">
+
+    @foreach (var group in Definition.Groups.OrderBy(g => g.Order))
+    {
+        var groupX = OffsetOf(group);
+        var headerBackground = group.BackgroundColorHex is { } hex ? hex : "var(--mud-palette-surface, #1e1e1e)";
+        var headerText = ColorUtils.ContrastingTextColor(group.BackgroundColorHex);
+        var contentBackground = group.BackgroundColorHex is { } bg ? ColorUtils.ToRgba(bg, 0.13) : "transparent";
+
+        <div class="vm-group" style="left:@(groupX)px;width:@(group.EffectiveWidth)px;background:@contentBackground;">
+            <div class="vm-group-header" style="background:@headerBackground;color:@headerText;@(Ds is not null ? "cursor:pointer;" : "")"
+                 @onclick="@(() => OnHeaderClick(group))">
+                @if (Ds is not null)
+                {
+                    <span style="cursor:pointer;display:flex;align-items:center;" title="@(group.IsCollapsed ? "Ausklappen" : "Einklappen")"
+                          @onclick="@(() => ToggleCollapse(group))" @onclick:stopPropagation="true">
+                        <MudIcon Icon="@(group.IsCollapsed ? Icons.Material.Filled.ChevronRight : Icons.Material.Filled.ExpandMore)" Size="Size.Small" />
+                    </span>
+                }
+                @if (!group.IsCollapsed)
+                {
+                    <span style="overflow:hidden;text-overflow:ellipsis;">@group.Label</span>
+                }
+            </div>
+
+            @if (group.IsCollapsed)
+            {
+                <div class="vm-group-collapsed-label" style="color:@headerText;">@group.Label</div>
+            }
+            else
+            {
+                <div class="vm-group-content"
+                     @ondragover:preventDefault="@(Ds?.EditMode == true)"
+                     @ondrop="@(e => OnDrop(e, group))">
+                    @foreach (var control in group.Controls)
+                    {
+                        if (!control.IsVisible && Ds?.EditMode != true)
+                        {
+                            continue;
+                        }
+
+                        if (Registry.Find(control.TypeKey) is { } descriptor)
+                        {
+                            <ControlHost @key="control.Id" Control="control" Group="group" Descriptor="descriptor" />
+                        }
+                    }
+                </div>
+            }
+        </div>
+    }
+
+    @if (Ds is not null)
+    {
+        foreach (var line in Ds.ActiveSnaplines)
+        {
+            if (line.Vertical)
+            {
+                <div class="vm-snapline v" style="left:@(line.Position)px;"></div>
+            }
+            else
+            {
+                <div class="vm-snapline h" style="top:@(line.Position)px;"></div>
+            }
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public required MixerDefinition Definition { get; set; }
+    [CascadingParameter] internal DesignerState? Ds { get; set; }
+
+    private ElementReference _element;
+
+    /// <summary>Surface DOM element (used by the designer for rubber-band attachment).</summary>
+    public ElementReference Element => _element;
+
+    private int OffsetOf(MixerGroup group) =>
+        Definition.Groups.Where(g => g.Order < group.Order).Sum(g => g.EffectiveWidth);
+
+    private void OnHeaderClick(MixerGroup group)
+    {
+        if (Ds is not null)
+        {
+            Ds.OpenGroupConfig(group.Id);
+        }
+    }
+
+    private void ToggleCollapse(MixerGroup group) =>
+        Ds?.UpdateGroup(group.Id, g => g.IsCollapsed = !g.IsCollapsed, "collapse");
+
+    private void OnDrop(DragEventArgs e, MixerGroup group)
+    {
+        if (Ds?.EditMode != true)
+        {
+            return;
+        }
+
+        var x = (int)Math.Round(e.OffsetX);
+        var y = (int)Math.Round(e.OffsetY);
+
+        if (Ds.PendingToolboxTypeKey is { } typeKey)
+        {
+            Ds.PendingToolboxTypeKey = null;
+            var control = Ds.CreateControl(typeKey);
+            Ds.AddControl(control, group, x - (control.Width / 2), y - (control.Height / 2));
+        }
+        else if (Ds.PendingTemplateId is not null)
+        {
+            // Template instantiation is resolved by the designer root (owns the template service).
+            _ = OnTemplateDrop.InvokeAsync((group, x, y));
+        }
+    }
+
+    [Parameter] public EventCallback<(MixerGroup Group, int X, int Y)> OnTemplateDrop { get; set; }
+}

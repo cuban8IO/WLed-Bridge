@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\wledBridge.Application\wledBridge.Application.csproj" />
     <ProjectReference Include="..\wledBridge.Infrastructure\wledBridge.Infrastructure.csproj" />
+    <ProjectReference Include="..\wledBridge.VirtualMixer\wledBridge.VirtualMixer.csproj" />
   </ItemGroup>
 
   <ItemGroup>

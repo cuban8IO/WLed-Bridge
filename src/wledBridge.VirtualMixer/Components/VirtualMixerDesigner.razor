@@ -1,0 +1,309 @@
+@namespace wledBridge.VirtualMixer.Components
+@using wledBridge.VirtualMixer.Components.Internal
+@using wledBridge.VirtualMixer.Designer
+@using wledBridge.VirtualMixer.Persistence.Serialization
+@using wledBridge.VirtualMixer.State
+@implements IAsyncDisposable
+@inject IVirtualMixerManager Manager
+@inject ControlRegistry Registry
+@inject ControlTemplateService Templates
+@inject IJSRuntime JS
+@inject ISnackbar Snackbar
+
+@if (_ds is null)
+{
+    <MudText Typo="Typo.body2" Class="pa-4" Style="opacity:0.7;">
+        @(_loadFailed ? "Mixer nicht gefunden." : "Lade Mixer ...")
+    </MudText>
+}
+else
+{
+    <CascadingValue Value="_ds" IsFixed="true">
+        <div style="display:flex;flex-direction:column;border:1px solid var(--mud-palette-lines-default);border-radius:4px;">
+
+            @* ------------------------------------------------ toolbar *@
+            <div style="display:flex;align-items:center;gap:4px;padding:4px 8px;border-bottom:1px solid var(--mud-palette-lines-default);flex-wrap:wrap;">
+                <MudSwitch T="bool" Value="_ds.EditMode" ValueChanged="OnEditModeChanged" Label="Bearbeitungsmodus" Color="Color.Primary" />
+                <MudDivider Vertical="true" FlexItem="true" />
+
+                <MudTooltip Text="Rückgängig (Strg+Z)">
+                    <MudIconButton Icon="@Icons.Material.Filled.Undo" Size="Size.Small" Disabled="@(!_ds.CanUndo || !_ds.EditMode)"
+                                   OnClick="@(() => _ds.Undo())" />
+                </MudTooltip>
+                <MudTooltip Text="Wiederholen (Strg+Y)">
+                    <MudIconButton Icon="@Icons.Material.Filled.Redo" Size="Size.Small" Disabled="@(!_ds.CanRedo || !_ds.EditMode)"
+                                   OnClick="@(() => _ds.Redo())" />
+                </MudTooltip>
+
+                @if (_ds.EditMode)
+                {
+                    <MudDivider Vertical="true" FlexItem="true" />
+                    <MudTooltip Text="Kopieren (Strg+C)">
+                        <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
+                                       Disabled="@(_ds.Selection.Count == 0)" OnClick="@(() => _ds.CopySelection())" />
+                    </MudTooltip>
+                    <MudTooltip Text="Einfügen (Strg+V)">
+                        <MudIconButton Icon="@Icons.Material.Filled.ContentPaste" Size="Size.Small"
+                                       Disabled="@(!_ds.ClipboardHasContent)" OnClick="@(() => _ds.Paste())" />
+                    </MudTooltip>
+                    <MudTooltip Text="Duplizieren (Strg+D)">
+                        <MudIconButton Icon="@Icons.Material.Filled.CopyAll" Size="Size.Small"
+                                       Disabled="@(_ds.Selection.Count == 0)" OnClick="@(() => _ds.DuplicateSelection())" />
+                    </MudTooltip>
+
+                    <MudMenu Dense="true" Disabled="@(_ds.Selection.Count < 2)">
+                        <ActivatorContent>
+                            <MudTooltip Text="Ausrichten">
+                                <MudIconButton Icon="@Icons.Material.Filled.AlignHorizontalLeft" Size="Size.Small"
+                                               Disabled="@(_ds.Selection.Count < 2)" />
+                            </MudTooltip>
+                        </ActivatorContent>
+                        <ChildContent>
+                            <MudMenuItem OnClick="@(() => _ds.Align(DesignerState.AlignKind.Left))">Linksbündig</MudMenuItem>
+                            <MudMenuItem OnClick="@(() => _ds.Align(DesignerState.AlignKind.Right))">Rechtsbündig</MudMenuItem>
+                            <MudMenuItem OnClick="@(() => _ds.Align(DesignerState.AlignKind.Top))">Oben bündig</MudMenuItem>
+                            <MudMenuItem OnClick="@(() => _ds.Align(DesignerState.AlignKind.Bottom))">Unten bündig</MudMenuItem>
+                            <MudMenuItem OnClick="@(() => _ds.Align(DesignerState.AlignKind.CenterHorizontal))">Horizontal zentrieren</MudMenuItem>
+                            <MudMenuItem OnClick="@(() => _ds.Align(DesignerState.AlignKind.CenterVertical))">Vertikal zentrieren</MudMenuItem>
+                            <MudMenuItem OnClick="@(() => _ds.Align(DesignerState.AlignKind.DistributeHorizontal))">Horizontal verteilen</MudMenuItem>
+                            <MudMenuItem OnClick="@(() => _ds.Align(DesignerState.AlignKind.DistributeVertical))">Vertikal verteilen</MudMenuItem>
+                        </ChildContent>
+                    </MudMenu>
+
+                    <MudDivider Vertical="true" FlexItem="true" />
+                    <MudButton Size="Size.Small" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Add"
+                               OnClick="@(() => _ds.AddGroup())">Gruppe</MudButton>
+                    <MudButton Size="Size.Small" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Settings"
+                               OnClick="@(() => _ds.OpenMixerConfig())">Mixer-Einstellungen</MudButton>
+                }
+
+                <MudSpacer />
+                <MudText Typo="Typo.caption" Style="opacity:0.8;">@_ds.Mixer.Name@(_ds.IsDirty ? " •" : "")</MudText>
+                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                           Disabled="@(!_ds.IsDirty)" OnClick="SaveAsync">Speichern</MudButton>
+            </div>
+
+            @* ------------------------------------------------ body *@
+            <div style="display:flex;min-height:200px;">
+                @if (_ds.EditMode)
+                {
+                    <Toolbox />
+                }
+
+                <div style="flex:1;overflow:auto;padding:12px;outline:none;" tabindex="0"
+                     @onkeydown="OnKeyDown" @onkeydown:preventDefault="_preventKeyDefault" @onkeydown:stopPropagation="_preventKeyDefault">
+                    <CascadingValue Name="VmScale" Value="1.0">
+                        <MixerSurface @ref="_surface" Definition="_ds.Mixer" OnTemplateDrop="OnTemplateDrop" />
+                    </CascadingValue>
+                </div>
+
+                @if (_ds.EditMode && (_ds.ConfigControlId is not null || _ds.ConfigGroupId is not null || _ds.ConfigMixerOpen))
+                {
+                    <ConfigSidebar />
+                }
+            </div>
+
+            @* ------------------------------------------------ event monitor *@
+            <EventMonitorPanel />
+        </div>
+    </CascadingValue>
+}
+
+@code {
+    /// <summary>Mixer to design; null opens the active mixer.</summary>
+    [Parameter] public Guid? MixerId { get; set; }
+
+    [Inject] internal MixerJsonSerializer Serializer { get; set; } = default!;
+    [Inject] internal DesignerClipboard Clipboard { get; set; } = default!;
+    [Inject] internal MixerRuntimeState Runtime { get; set; } = default!;
+
+    private DesignerState? _ds;
+    private MixerSurface? _surface;
+    private bool _loadFailed;
+    private bool _preventKeyDefault = true;
+    private IJSObjectReference? _module;
+    private IJSObjectReference? _rubberBand;
+    private DotNetObjectReference<VirtualMixerDesigner>? _selfRef;
+    private bool _rubberBandAttached;
+    private Guid? _designedMixerId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var mixer = MixerId is { } id
+            ? await Manager.GetMixerAsync(id)
+            : await Manager.GetActiveMixerAsync();
+
+        if (mixer is null)
+        {
+            _loadFailed = true;
+            return;
+        }
+
+        _designedMixerId = mixer.Id;
+        _ds = new DesignerState(Manager, Serializer, Registry, Clipboard, Runtime, mixer);
+        _ds.Changed += OnDesignerChanged;
+    }
+
+    private void OnDesignerChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private void OnEditModeChanged(bool value)
+    {
+        _ds!.EditMode = value;
+        if (!value)
+        {
+            _ds.ClearSelection();
+            _ds.CloseConfig();
+        }
+
+        _ds.NotifyChanged();
+    }
+
+    private async Task SaveAsync()
+    {
+        await _ds!.SaveAsync();
+        Snackbar.Add($"Mixer '{_ds.Mixer.Name}' gespeichert", Severity.Success);
+    }
+
+    private void OnTemplateDrop((MixerGroup Group, int X, int Y) drop)
+    {
+        if (_ds?.PendingTemplateId is not { } templateId)
+        {
+            return;
+        }
+
+        _ds.PendingTemplateId = null;
+        _ = InvokeAsync(async () =>
+        {
+            var templates = await Templates.GetTemplatesAsync();
+            if (templates.FirstOrDefault(t => t.Id == templateId) is { } template)
+            {
+                var control = Templates.Instantiate(template);
+                _ds.AddControl(control, drop.Group, drop.X - (control.Width / 2), drop.Y - (control.Height / 2));
+            }
+        });
+    }
+
+    // ------------------------------------------------------------- keyboard
+
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (_ds is null || !_ds.EditMode)
+        {
+            _preventKeyDefault = false;
+            return;
+        }
+
+        _preventKeyDefault = true;
+        var step = e.ShiftKey ? 10 : 1;
+
+        switch (e.Key)
+        {
+            case "ArrowLeft": _ds.Nudge(-step, 0); break;
+            case "ArrowRight": _ds.Nudge(step, 0); break;
+            case "ArrowUp": _ds.Nudge(0, -step); break;
+            case "ArrowDown": _ds.Nudge(0, step); break;
+            case "Delete": _ds.RemoveSelection(); break;
+            case "Escape": _ds.ClearSelection(); _ds.CloseConfig(); break;
+            case "z" or "Z" when e.CtrlKey: _ds.Undo(); break;
+            case "y" or "Y" when e.CtrlKey: _ds.Redo(); break;
+            case "c" or "C" when e.CtrlKey: _ds.CopySelection(); break;
+            case "v" or "V" when e.CtrlKey: _ds.Paste(); break;
+            case "d" or "D" when e.CtrlKey: _ds.DuplicateSelection(); break;
+            default: _preventKeyDefault = false; break;
+        }
+    }
+
+    // ------------------------------------------------------------- rubber band
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/wledBridge.VirtualMixer/virtualmixer.js");
+            await _module.InvokeVoidAsync("ensureStyles");
+        }
+
+        var wantRubberBand = _ds?.EditMode == true && _surface is not null;
+        if (wantRubberBand && !_rubberBandAttached && _module is not null)
+        {
+            _rubberBandAttached = true;
+            _selfRef ??= DotNetObjectReference.Create(this);
+            _rubberBand = await _module.InvokeAsync<IJSObjectReference>("attachRubberBand", _surface!.Element, _selfRef, new { scale = 1.0 });
+        }
+        else if (!wantRubberBand && _rubberBandAttached)
+        {
+            _rubberBandAttached = false;
+            await DisposeRubberBandAsync();
+        }
+    }
+
+    [JSInvokable]
+    public void OnRubberBand(double x, double y, double width, double height, bool shiftKey)
+    {
+        if (_ds is null)
+        {
+            return;
+        }
+
+        if (width < 4 && height < 4)
+        {
+            if (!shiftKey)
+            {
+                _ds.ClearSelection();
+            }
+
+            return;
+        }
+
+        _ds.SelectRect((int)x, (int)y, (int)width, (int)height, shiftKey);
+    }
+
+    private async Task DisposeRubberBandAsync()
+    {
+        if (_rubberBand is null)
+        {
+            return;
+        }
+
+        var attachment = _rubberBand;
+        _rubberBand = null;
+        try
+        {
+            await attachment.InvokeVoidAsync("dispose");
+            await attachment.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_ds is not null)
+        {
+            _ds.Changed -= OnDesignerChanged;
+
+            // Restore the persisted definition in the runtime engine (the working copy may
+            // contain unsaved changes).
+            if (_designedMixerId is { } id && await Manager.GetMixerAsync(id) is { } saved)
+            {
+                Runtime.RegisterMixer(saved);
+            }
+        }
+
+        await DisposeRubberBandAsync();
+
+        try
+        {
+            if (_module is not null)
+            {
+                await _module.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+
+        _selfRef?.Dispose();
+    }
+}

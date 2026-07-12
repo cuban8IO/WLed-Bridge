@@ -1,0 +1,54 @@
+@namespace wledBridge.VirtualMixer.Controls
+@using wledBridge.VirtualMixer.Components.Internal
+@using wledBridge.VirtualMixer.State
+@inherits ControlRendererBase
+
+<div class="vm-button @(State?.IsOn == true ? "vm-on" : "")"
+     style="@Style"
+     @onpointerdown="OnPointerDown"
+     @onpointerup="OnPointerUp"
+     @onpointerleave="OnPointerLeave">
+    @if (Settings.Led is not null)
+    {
+        <div class="vm-button-led" style="background:@LedColor"></div>
+    }
+    <span style="font-size:@(FontSize)px;line-height:1.1;overflow:hidden;">@Instance.Label</span>
+</div>
+
+@code {
+    private ButtonSettings Settings => (ButtonSettings)Instance.Settings;
+
+    private string Style
+    {
+        get
+        {
+            var background = Instance.BackgroundColorHex is { } hex
+                ? ColorUtils.ToRgba(hex, 0.35)
+                : "var(--mud-palette-surface, #1e1e1e)";
+            var text = Instance.BackgroundColorHex is { } textHex
+                ? ColorUtils.ContrastingTextColor(textHex)
+                : "var(--mud-palette-text-primary, #fff)";
+            return $"background:{background};color:{text};";
+        }
+    }
+
+    private int FontSize => Math.Clamp(Math.Min(Instance.Width, Instance.Height) / 4, 9, 16);
+
+    private string LedColor
+    {
+        get
+        {
+            var brightness = State?.LedBrightness ?? 0;
+            var configured = Settings.Led?.ColorMode == LedColorMode.Rgb
+                ? State?.LedColorHex ?? Settings.Led?.ColorHex
+                : ColorUtils.AmberHex;
+            return ColorUtils.LedColor(configured, brightness);
+        }
+    }
+
+    private Task OnPointerDown() => Send(new ButtonPressCommand(Instance.Id));
+
+    private Task OnPointerUp() => Send(new ButtonReleaseCommand(Instance.Id));
+
+    private Task OnPointerLeave() => Send(new ButtonReleaseCommand(Instance.Id));
+}

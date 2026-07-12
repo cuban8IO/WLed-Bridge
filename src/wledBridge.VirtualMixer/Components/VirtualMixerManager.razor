@@ -1,0 +1,162 @@
+@namespace wledBridge.VirtualMixer.Components
+@using Microsoft.AspNetCore.Components.Forms
+@implements IDisposable
+@inject IVirtualMixerManager Manager
+@inject IJSRuntime JS
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<MudPaper Class="pa-4 mb-4" Elevation="2">
+    <MudText Typo="Typo.h6" Class="mb-2">Neuer Mixer</MudText>
+    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+        <MudTextField T="string" @bind-Value="_newName" Label="Name" Margin="Margin.Dense" Style="max-width:220px;" />
+        <MudTextField T="string" @bind-Value="_newDescription" Label="Beschreibung" Margin="Margin.Dense" Style="max-width:300px;" />
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                   Disabled="@(string.IsNullOrWhiteSpace(_newName))" OnClick="CreateAsync">Erstellen</MudButton>
+    </MudStack>
+    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Class="mt-3">
+        <MudText Typo="Typo.caption">Konfiguration importieren (JSON):</MudText>
+        <InputFile OnChange="ImportAsync" accept=".json" />
+    </MudStack>
+</MudPaper>
+
+<MudPaper Class="pa-4" Elevation="2">
+    <MudText Typo="Typo.h6" Class="mb-2">Mixer</MudText>
+
+    @if (_mixers.Count == 0)
+    {
+        <MudText Typo="Typo.body2" Style="opacity:0.7;">Noch keine Mixer vorhanden.</MudText>
+    }
+    else
+    {
+        <MudTable Items="_mixers" Dense="true" Hover="true">
+            <HeaderContent>
+                <MudTh>Name</MudTh>
+                <MudTh>Beschreibung</MudTh>
+                <MudTh>Controls</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@context.Name</MudTd>
+                <MudTd>@context.Description</MudTd>
+                <MudTd>@context.ControlCount</MudTd>
+                <MudTd>
+                    @if (context.IsActive)
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Success">Aktiv</MudChip>
+                    }
+                </MudTd>
+                <MudTd>
+                    <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                        @if (!context.IsActive)
+                        {
+                            <MudButton Size="Size.Small" Variant="Variant.Text"
+                                       OnClick="@(() => ActivateAsync(context))">Aktivieren</MudButton>
+                        }
+                        @if (OnOpenDesigner.HasDelegate)
+                        {
+                            <MudButton Size="Size.Small" Variant="Variant.Text"
+                                       OnClick="@(() => OnOpenDesigner.InvokeAsync(context.Id))">Designer</MudButton>
+                        }
+                        @if (OnOpenTest.HasDelegate)
+                        {
+                            <MudButton Size="Size.Small" Variant="Variant.Text"
+                                       OnClick="@(() => OnOpenTest.InvokeAsync(context.Id))">Testen</MudButton>
+                        }
+                        <MudButton Size="Size.Small" Variant="Variant.Text"
+                                   OnClick="@(() => ExportAsync(context))">Export</MudButton>
+                        <MudTooltip Text="Löschen">
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                           OnClick="@(() => DeleteAsync(context))" />
+                        </MudTooltip>
+                    </MudStack>
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+</MudPaper>
+
+@code {
+    /// <summary>Optional host navigation hooks (the module does not own routes).</summary>
+    [Parameter] public EventCallback<Guid> OnOpenDesigner { get; set; }
+    [Parameter] public EventCallback<Guid> OnOpenTest { get; set; }
+
+    private IReadOnlyList<MixerInfo> _mixers = [];
+    private string _newName = "";
+    private string? _newDescription;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Manager.MixersChanged += OnMixersChanged;
+        _mixers = await Manager.GetMixersAsync();
+    }
+
+    private void OnMixersChanged(object? sender, EventArgs e) => _ = InvokeAsync(async () =>
+    {
+        _mixers = await Manager.GetMixersAsync();
+        StateHasChanged();
+    });
+
+    private async Task CreateAsync()
+    {
+        var id = await Manager.CreateMixerAsync(_newName.Trim(), _newDescription);
+        Snackbar.Add($"Mixer '{_newName.Trim()}' erstellt", Severity.Success);
+        _newName = "";
+        _newDescription = null;
+
+        if (OnOpenDesigner.HasDelegate)
+        {
+            await OnOpenDesigner.InvokeAsync(id);
+        }
+    }
+
+    private async Task ActivateAsync(MixerInfo mixer)
+    {
+        await Manager.ActivateMixerAsync(mixer.Id);
+        Snackbar.Add($"'{mixer.Name}' ist jetzt aktiv", Severity.Success);
+    }
+
+    private async Task ExportAsync(MixerInfo mixer)
+    {
+        var json = await Manager.ExportMixerAsync(mixer.Id);
+        var module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/wledBridge.VirtualMixer/virtualmixer.js");
+        var safeName = string.Join("_", mixer.Name.Split(Path.GetInvalidFileNameChars()));
+        await module.InvokeVoidAsync("downloadText", $"{safeName}.mixer.json", "application/json", json);
+        await module.DisposeAsync();
+        Snackbar.Add($"'{mixer.Name}' exportiert", Severity.Success);
+    }
+
+    private async Task ImportAsync(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            using var reader = new StreamReader(e.File.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024));
+            var json = await reader.ReadToEndAsync();
+            var id = await Manager.ImportMixerAsync(json);
+            var imported = await Manager.GetMixerAsync(id);
+            Snackbar.Add($"'{imported?.Name}' importiert", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Import fehlgeschlagen: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DeleteAsync(MixerInfo mixer)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Mixer löschen",
+            $"'{mixer.Name}' wirklich löschen? Alle Controls und Bindings dieses Mixers gehen unwiderruflich verloren.",
+            yesText: "Löschen",
+            cancelText: "Abbrechen");
+
+        if (confirmed == true)
+        {
+            await Manager.DeleteMixerAsync(mixer.Id);
+            Snackbar.Add($"'{mixer.Name}' gelöscht", Severity.Success);
+        }
+    }
+
+    public void Dispose() => Manager.MixersChanged -= OnMixersChanged;
+}

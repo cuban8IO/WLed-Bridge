@@ -1,0 +1,75 @@
+@namespace wledBridge.VirtualMixer.Controls
+@using wledBridge.VirtualMixer.Components.Internal
+@using wledBridge.VirtualMixer.State
+@inherits ControlRendererBase
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div @ref="_element"
+     class="vm-fader @(Settings.Orientation == ControlOrientation.Vertical ? "vertical" : "horizontal")"
+     style="--vm-pos:@PositionCss;@BackgroundStyle">
+    <div class="vm-fader-track"></div>
+    <div class="vm-fader-thumb"></div>
+</div>
+
+@code {
+    private ElementReference _element;
+    private IJSObjectReference? _module;
+    private IJSObjectReference? _drag;
+    private DotNetObjectReference<FaderRenderer>? _selfRef;
+    private bool _interactiveAttached;
+
+    private FaderSettings Settings => (FaderSettings)Instance.Settings;
+
+    private string PositionCss =>
+        Settings.Curve.ToPosition(State?.Value ?? 0).ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+
+    private string BackgroundStyle => Instance.BackgroundColorHex is { } hex
+        ? $"background:{ColorUtils.ToRgba(hex, 0.25)};"
+        : "";
+
+    [CascadingParameter(Name = "VmScale")] public double Scale { get; set; } = 1.0;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Interactive && !_interactiveAttached)
+        {
+            _interactiveAttached = true;
+            _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/wledBridge.VirtualMixer/virtualmixer.js");
+            _selfRef = DotNetObjectReference.Create(this);
+            _drag = await _module.InvokeAsync<IJSObjectReference>("attachFaderDrag", _element, _selfRef, new
+            {
+                scale = Scale,
+                axis = Settings.Orientation == ControlOrientation.Vertical ? "y" : "x"
+            });
+        }
+    }
+
+    [JSInvokable]
+    public Task OnFaderPos(double position, bool isFinal) =>
+        Send(new SetValueCommand(Instance.Id, Settings.Curve.Apply(position), CommandSource.Ui));
+
+    public async ValueTask DisposeAsync()
+    {
+        Dispose();
+        try
+        {
+            if (_drag is not null)
+            {
+                await _drag.InvokeVoidAsync("dispose");
+                await _drag.DisposeAsync();
+            }
+
+            if (_module is not null)
+            {
+                await _module.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+            // Circuit already gone.
+        }
+
+        _selfRef?.Dispose();
+    }
+}

@@ -1,0 +1,218 @@
+@namespace wledBridge.VirtualMixer.Components.Internal
+@using wledBridge.VirtualMixer.Designer
+@inject ControlRegistry Registry
+@inject ControlTemplateService Templates
+@inject ISnackbar Snackbar
+
+<div style="width:320px;flex-shrink:0;border-left:1px solid var(--mud-palette-lines-default);padding:12px;overflow-y:auto;">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+        <MudText Typo="Typo.subtitle1">@Title</MudText>
+        <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" OnClick="@(() => Ds.CloseConfig())" />
+    </div>
+
+    @if (Control is { } control && Ds.Mixer.FindGroupOf(control.Id) is { } owningGroup)
+    {
+        var descriptor = Registry.Find(control.TypeKey);
+
+        <MudText Typo="Typo.overline" Class="mt-2" Style="display:block;">Grundeinstellungen</MudText>
+
+        <MudTextField T="string" Value="@control.Name" ValueChanged="@(v => Update(c => c.Name = v, "name"))"
+                      Label="Name" Margin="Margin.Dense" />
+        <MudTextField T="string" Value="@control.Label" ValueChanged="@(v => Update(c => c.Label = v, "label"))"
+                      Label="Label" Margin="Margin.Dense" Class="mt-1" />
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;" class="mt-1">
+            <MudNumericField T="int" Value="@control.X" ValueChanged="@(v => Update(c => c.X = v, "x"))" Label="X" Margin="Margin.Dense" Min="0" />
+            <MudNumericField T="int" Value="@control.Y" ValueChanged="@(v => Update(c => c.Y = v, "y"))" Label="Y" Margin="Margin.Dense" Min="0" />
+            <MudNumericField T="int" Value="@control.Width" ValueChanged="@(v => Update(c => c.Width = v, "w"))" Label="Breite" Margin="Margin.Dense" Min="1" />
+            <MudNumericField T="int" Value="@control.Height" ValueChanged="@(v => Update(c => c.Height = v, "h"))" Label="Höhe" Margin="Margin.Dense" Min="1" />
+        </div>
+
+        <div class="mt-2">
+            <VirtualMixerColorPicker Label="Hintergrundfarbe" Value="@control.BackgroundColorHex"
+                                     ValueChanged="@(v => Update(c => c.BackgroundColorHex = v, "bg"))" />
+        </div>
+
+        <MudSelect T="Guid" Value="@owningGroup.Id" ValueChanged="@(v => Ds.MoveControlToGroup(control.Id, v))"
+                   Label="Gruppe" Margin="Margin.Dense" Dense="true" Class="mt-1">
+            @foreach (var group in Ds.Mixer.Groups.OrderBy(g => g.Order))
+            {
+                <MudSelectItem T="Guid" Value="@group.Id">@group.Label</MudSelectItem>
+            }
+        </MudSelect>
+
+        <div style="display:flex;gap:16px;" class="mt-1">
+            <MudSwitch T="bool" Value="@control.IsVisible" ValueChanged="@(v => Update(c => c.IsVisible = v, "visible"))"
+                       Label="Sichtbar" Color="Color.Primary" />
+            <MudSwitch T="bool" Value="@control.IsEnabled" ValueChanged="@(v => Update(c => c.IsEnabled = v, "enabled"))"
+                       Label="Aktiviert" Color="Color.Primary" />
+        </div>
+
+        @if (descriptor is not null)
+        {
+            <MudText Typo="Typo.overline" Class="mt-3" Style="display:block;">@descriptor.DisplayName-Einstellungen</MudText>
+            <DynamicComponent Type="@descriptor.SettingsEditorComponent" Parameters="@EditorParameters(control)" />
+        }
+
+        <MudText Typo="Typo.overline" Class="mt-3" Style="display:block;">Eingehende Bindings</MudText>
+        @foreach (var binding in Ds.Mixer.Bindings.Where(b => b.TargetControlId == control.Id).ToList())
+        {
+            var current = binding;
+            <MudPaper Class="pa-2 mb-2" Outlined="true">
+                <MudSelect T="Guid" Value="@current.SourceControlId"
+                           ValueChanged="@(v => UpdateBinding(current.Id, b => b.SourceControlId = v))"
+                           Label="Quelle" Margin="Margin.Dense" Dense="true">
+                    @foreach (var source in Ds.Mixer.AllControls.Where(c => c.Id != control.Id))
+                    {
+                        <MudSelectItem T="Guid" Value="@source.Id">@source.Name</MudSelectItem>
+                    }
+                </MudSelect>
+
+                <MudSelect T="BindingTransformType" Value="@current.Transform.Type"
+                           ValueChanged="@(v => UpdateBinding(current.Id, b => b.Transform.Type = v))"
+                           Label="Transformation" Margin="Margin.Dense" Dense="true" Class="mt-1">
+                    <MudSelectItem T="BindingTransformType" Value="BindingTransformType.Identity">Direkt (1:1)</MudSelectItem>
+                    <MudSelectItem T="BindingTransformType" Value="BindingTransformType.Invert">Invertiert</MudSelectItem>
+                    <MudSelectItem T="BindingTransformType" Value="BindingTransformType.RangeMap">Bereichs-Mapping</MudSelectItem>
+                    <MudSelectItem T="BindingTransformType" Value="BindingTransformType.Curve">Kennlinie</MudSelectItem>
+                    <MudSelectItem T="BindingTransformType" Value="BindingTransformType.Threshold">Schwellwert</MudSelectItem>
+                </MudSelect>
+
+                @if (current.Transform.Type == BindingTransformType.RangeMap)
+                {
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;" class="mt-1">
+                        <MudNumericField T="int" Value="@current.Transform.InMin" ValueChanged="@(v => UpdateBinding(current.Id, b => b.Transform.InMin = v))" Label="Ein Min" Margin="Margin.Dense" Min="0" Max="127" />
+                        <MudNumericField T="int" Value="@current.Transform.InMax" ValueChanged="@(v => UpdateBinding(current.Id, b => b.Transform.InMax = v))" Label="Ein Max" Margin="Margin.Dense" Min="0" Max="127" />
+                        <MudNumericField T="int" Value="@current.Transform.OutMin" ValueChanged="@(v => UpdateBinding(current.Id, b => b.Transform.OutMin = v))" Label="Aus Min" Margin="Margin.Dense" Min="0" Max="127" />
+                        <MudNumericField T="int" Value="@current.Transform.OutMax" ValueChanged="@(v => UpdateBinding(current.Id, b => b.Transform.OutMax = v))" Label="Aus Max" Margin="Margin.Dense" Min="0" Max="127" />
+                    </div>
+                }
+                @if (current.Transform.Type == BindingTransformType.Threshold)
+                {
+                    <MudNumericField T="int" Value="@current.Transform.Threshold" ValueChanged="@(v => UpdateBinding(current.Id, b => b.Transform.Threshold = v))" Label="Schwellwert" Margin="Margin.Dense" Min="0" Max="127" Class="mt-1" />
+                }
+
+                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error" Class="mt-1"
+                           OnClick="@(() => RemoveBinding(current.Id))">Binding entfernen</MudButton>
+            </MudPaper>
+        }
+        <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => AddBinding(control))"
+                   Disabled="@(!Ds.Mixer.AllControls.Any(c => c.Id != control.Id))">Binding hinzufügen</MudButton>
+
+        <MudText Typo="Typo.overline" Class="mt-3" Style="display:block;">Aktionen</MudText>
+        <div style="display:flex;align-items:center;gap:6px;">
+            <MudTextField T="string" @bind-Value="_templateName" Placeholder="Template-Name" Margin="Margin.Dense" Style="max-width:150px;" />
+            <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="@(() => SaveTemplate(control))"
+                       Disabled="@(string.IsNullOrWhiteSpace(_templateName))">Als Template speichern</MudButton>
+        </div>
+        <div style="display:flex;gap:6px;" class="mt-1">
+            <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="@(() => Ds.DuplicateSelection())">Duplizieren</MudButton>
+            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error" OnClick="@(() => Ds.RemoveSelection())">Entfernen</MudButton>
+        </div>
+    }
+    else if (Group is { } group)
+    {
+        <MudText Typo="Typo.overline" Class="mt-2" Style="display:block;">Gruppe</MudText>
+
+        <MudTextField T="string" Value="@group.Label" ValueChanged="@(v => Ds.UpdateGroup(group.Id, g => g.Label = v, "label"))"
+                      Label="Label" Margin="Margin.Dense" />
+        <MudNumericField T="int" Value="@group.Width" ValueChanged="@(v => Ds.UpdateGroup(group.Id, g => g.Width = Math.Max(64, v), "width"))"
+                         Label="Breite" Margin="Margin.Dense" Min="64" Class="mt-1" />
+
+        <div class="mt-2">
+            <VirtualMixerColorPicker Label="Hintergrundfarbe" Value="@group.BackgroundColorHex"
+                                     ValueChanged="@(v => Ds.UpdateGroup(group.Id, g => g.BackgroundColorHex = v, "color"))" />
+        </div>
+
+        <MudSwitch T="bool" Value="@group.IsCollapsed" ValueChanged="@(v => Ds.UpdateGroup(group.Id, g => g.IsCollapsed = v, "collapse"))"
+                   Label="Eingeklappt" Color="Color.Primary" Class="mt-1" />
+
+        <div style="display:flex;gap:6px;" class="mt-2">
+            <MudTooltip Text="Nach links">
+                <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Size="Size.Small" OnClick="@(() => Ds.MoveGroup(group.Id, -1))" />
+            </MudTooltip>
+            <MudTooltip Text="Nach rechts">
+                <MudIconButton Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" OnClick="@(() => Ds.MoveGroup(group.Id, 1))" />
+            </MudTooltip>
+            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error"
+                       Disabled="@(Ds.Mixer.Groups.Count <= 1)"
+                       OnClick="@(() => Ds.RemoveGroup(group.Id))">
+                Gruppe entfernen
+            </MudButton>
+        </div>
+        <MudText Typo="Typo.caption" Style="opacity:0.7;">Controls einer entfernten Gruppe wandern in die erste Gruppe.</MudText>
+    }
+    else if (Ds.ConfigMixerOpen)
+    {
+        <MudText Typo="Typo.overline" Class="mt-2" Style="display:block;">Mixer</MudText>
+
+        <MudTextField T="string" Value="@Ds.Mixer.Name" ValueChanged="@(v => Ds.UpdateMixerProps(m => m.Name = v, "mixer-name"))"
+                      Label="Name" Margin="Margin.Dense" />
+        <MudTextField T="string" Value="@Ds.Mixer.Description" ValueChanged="@(v => Ds.UpdateMixerProps(m => m.Description = v, "mixer-desc"))"
+                      Label="Beschreibung" Margin="Margin.Dense" Class="mt-1" />
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;" class="mt-1">
+            <MudNumericField T="int" Value="@Ds.Mixer.LogicalWidth" ValueChanged="@(v => Ds.UpdateMixerProps(m => m.LogicalWidth = Math.Max(200, v), "mixer-w"))"
+                             Label="Logische Breite" Margin="Margin.Dense" Min="200" />
+            <MudNumericField T="int" Value="@Ds.Mixer.LogicalHeight" ValueChanged="@(v => Ds.UpdateMixerProps(m => m.LogicalHeight = Math.Max(120, v), "mixer-h"))"
+                             Label="Logische Höhe" Margin="Margin.Dense" Min="120" />
+        </div>
+    }
+</div>
+
+@code {
+    [CascadingParameter] internal DesignerState Ds { get; set; } = default!;
+
+    private string _templateName = "";
+
+    private ControlInstance? Control =>
+        Ds.ConfigControlId is { } id ? Ds.Mixer.FindControl(id) : null;
+
+    private MixerGroup? Group =>
+        Ds.ConfigGroupId is { } id ? Ds.Mixer.Groups.FirstOrDefault(g => g.Id == id) : null;
+
+    private string Title => Control is not null ? "Control konfigurieren"
+        : Group is not null ? "Gruppe konfigurieren"
+        : "Mixer-Einstellungen";
+
+    private void Update(Action<ControlInstance> mutate, string mergeKey)
+    {
+        if (Ds.ConfigControlId is { } id)
+        {
+            Ds.UpdateControl(id, mutate, mergeKey);
+        }
+    }
+
+    private Dictionary<string, object?> EditorParameters(ControlInstance control) => new()
+    {
+        ["Context"] = new ControlEditContext(control, (mutate, key) => Ds.UpdateControl(control.Id, mutate, key))
+    };
+
+    private void AddBinding(ControlInstance target)
+    {
+        var source = Ds.Mixer.AllControls.First(c => c.Id != target.Id);
+        Ds.UpdateBindings(bindings => bindings.Add(new ControlBinding
+        {
+            SourceControlId = source.Id,
+            TargetControlId = target.Id
+        }));
+    }
+
+    private void UpdateBinding(Guid bindingId, Action<ControlBinding> mutate) =>
+        Ds.UpdateBindings(bindings =>
+        {
+            if (bindings.FirstOrDefault(b => b.Id == bindingId) is { } binding)
+            {
+                mutate(binding);
+            }
+        });
+
+    private void RemoveBinding(Guid bindingId) =>
+        Ds.UpdateBindings(bindings => bindings.RemoveAll(b => b.Id == bindingId));
+
+    private async Task SaveTemplate(ControlInstance control)
+    {
+        await Templates.SaveFromControlAsync(_templateName.Trim(), control);
+        Snackbar.Add($"Template '{_templateName.Trim()}' gespeichert", Severity.Success);
+        _templateName = "";
+    }
+}

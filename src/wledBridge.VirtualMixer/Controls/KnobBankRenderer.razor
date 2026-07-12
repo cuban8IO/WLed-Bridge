@@ -1,0 +1,162 @@
+@namespace wledBridge.VirtualMixer.Controls
+@using wledBridge.VirtualMixer.Components.Internal
+@using wledBridge.VirtualMixer.State
+@inherits ControlRendererBase
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="vm-knobbank" style="@BankStyle">
+    @for (var i = 0; i < Settings.Count; i++)
+    {
+        var index = i;
+        var item = index < Settings.Knobs.Count ? Settings.Knobs[index] : null;
+        <div class="vm-knobbank-item">
+            <div @ref="_elements[index]" class="vm-knob" style="flex:1;min-height:0;width:100%;"
+                 @onwheel="@(e => OnWheel(e, index))" @onwheel:preventDefault="@Interactive">
+                <KnobFace Position="@PositionOf(index)" Color="@(item?.ColorHex ?? "var(--mud-palette-primary, #01FF95)")" />
+            </div>
+            @if (!string.IsNullOrEmpty(item?.Label))
+            {
+                <span class="vm-mini-label">@item.Label</span>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private const double DragPixelsForFullRange = 150.0;
+    private const double RelativeTickPixels = 4.0;
+
+    private ElementReference[] _elements = new ElementReference[64];
+    private readonly List<(IJSObjectReference Drag, DotNetObjectReference<MiniProxy> Ref)> _attached = [];
+    private IJSObjectReference? _module;
+    private int _attachedCount;
+
+    private KnobBankSettings Settings => (KnobBankSettings)Instance.Settings;
+
+    private string BankStyle
+    {
+        get
+        {
+            var count = Math.Max(1, Settings.Count);
+            var columns = Settings.Layout switch
+            {
+                KnobBankLayout.FixedColumns => Math.Max(1, Settings.FixedColumns),
+                KnobBankLayout.FixedRows => (int)Math.Ceiling(count / (double)Math.Max(1, Settings.FixedRows)),
+                KnobBankLayout.Horizontal => count,
+                KnobBankLayout.Vertical => 1,
+                _ => (int)Math.Ceiling(Math.Sqrt(count))
+            };
+
+            var background = Instance.BackgroundColorHex is { } hex
+                ? $"background:{ColorUtils.ToRgba(hex, 0.25)};"
+                : "";
+            return $"grid-template-columns:repeat({columns},1fr);{background}";
+        }
+    }
+
+    private KnobMode ModeOf(int index) =>
+        (index < Settings.Knobs.Count ? Settings.Knobs[index].ModeOverride : null) ?? Settings.Mode;
+
+    private Curve CurveOf(int index) =>
+        (index < Settings.Knobs.Count ? Settings.Knobs[index].CurveOverride : null) ?? Settings.Curve;
+
+    private double? PositionOf(int index) =>
+        ModeOf(index) == KnobMode.Relative
+            ? null
+            : CurveOf(index).ToPosition(State?.SubValues is { } values && index < values.Count ? values[index] : 0);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!Interactive || _attachedCount == Settings.Count)
+        {
+            return;
+        }
+
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./_content/wledBridge.VirtualMixer/virtualmixer.js");
+
+        for (var i = _attachedCount; i < Settings.Count && i < _elements.Length; i++)
+        {
+            var proxy = DotNetObjectReference.Create(new MiniProxy(this, i));
+            var drag = await _module.InvokeAsync<IJSObjectReference>("attachKnobDrag", _elements[i], proxy, new { scale = Scale });
+            _attached.Add((drag, proxy));
+        }
+
+        _attachedCount = Settings.Count;
+    }
+
+    [CascadingParameter(Name = "VmScale")] public double Scale { get; set; } = 1.0;
+
+    private async Task HandleDrag(int index, double totalDy, MiniProxy proxy)
+    {
+        if (ModeOf(index) == KnobMode.Relative)
+        {
+            var ticks = (int)((totalDy - proxy.SentPixels) / RelativeTickPixels);
+            if (ticks != 0)
+            {
+                proxy.SentPixels += ticks * RelativeTickPixels;
+                await Send(new KnobDeltaCommand(Instance.Id, index, ticks));
+            }
+        }
+        else
+        {
+            var position = Math.Clamp(proxy.StartPosition + (totalDy / DragPixelsForFullRange), 0.0, 1.0);
+            await Send(new SetSubValueCommand(Instance.Id, index, CurveOf(index).Apply(position), CommandSource.Ui));
+        }
+    }
+
+    private Task OnWheel(WheelEventArgs e, int index)
+    {
+        if (!Interactive)
+        {
+            return Task.CompletedTask;
+        }
+
+        var direction = e.DeltaY < 0 ? 1 : -1;
+        if (ModeOf(index) == KnobMode.Relative)
+        {
+            return Send(new KnobDeltaCommand(Instance.Id, index, direction));
+        }
+
+        var current = State?.SubValues is { } values && index < values.Count ? values[index] : 0;
+        return Send(new SetSubValueCommand(Instance.Id, index, Math.Clamp(current + (direction * 3), 0, 127), CommandSource.Ui));
+    }
+
+    internal sealed class MiniProxy(KnobBankRenderer owner, int index)
+    {
+        public double StartPosition { get; private set; }
+        public double SentPixels { get; set; }
+
+        [JSInvokable]
+        public void OnKnobDragStart()
+        {
+            StartPosition = owner.PositionOf(index) ?? 0;
+            SentPixels = 0;
+        }
+
+        [JSInvokable]
+        public Task OnKnobDrag(double totalDy, bool isFinal) => owner.HandleDrag(index, totalDy, this);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        Dispose();
+        try
+        {
+            foreach (var (drag, reference) in _attached)
+            {
+                await drag.InvokeVoidAsync("dispose");
+                await drag.DisposeAsync();
+                reference.Dispose();
+            }
+
+            if (_module is not null)
+            {
+                await _module.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+}

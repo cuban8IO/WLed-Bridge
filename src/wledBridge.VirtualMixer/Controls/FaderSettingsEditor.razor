@@ -1,0 +1,22 @@
+@namespace wledBridge.VirtualMixer.Controls
+
+<MudSelect T="ControlOrientation" Value="Settings.Orientation" ValueChanged="OnOrientationChanged" Label="Ausrichtung" Margin="Margin.Dense" Dense="true">
+    <MudSelectItem T="ControlOrientation" Value="ControlOrientation.Vertical">Vertikal</MudSelectItem>
+    <MudSelectItem T="ControlOrientation" Value="ControlOrientation.Horizontal">Horizontal</MudSelectItem>
+</MudSelect>
+
+<div class="mt-2">
+    <CurveEditor Curve="Settings.Curve" CurveChanged="OnCurveChanged" />
+</div>
+
+@code {
+    [Parameter] public required ControlEditContext Context { get; set; }
+
+    private FaderSettings Settings => (FaderSettings)Context.Instance.Settings;
+
+    private void OnOrientationChanged(ControlOrientation orientation) =>
+        Context.Update(c => ((FaderSettings)c.Settings).Orientation = orientation, "fader-orientation");
+
+    private void OnCurveChanged(Curve curve) =>
+        Context.Update(c => ((FaderSettings)c.Settings).Curve = curve, "fader-curve");
+}

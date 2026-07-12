@@ -1,0 +1,34 @@
+@namespace wledBridge.VirtualMixer.Controls
+@using wledBridge.VirtualMixer.Components.Internal
+
+<MudSelect T="LedColorMode" Value="Settings.ColorMode" ValueChanged="OnColorModeChanged" Label="Farbmodus" Margin="Margin.Dense" Dense="true">
+    <MudSelectItem T="LedColorMode" Value="LedColorMode.Amber">Amber</MudSelectItem>
+    <MudSelectItem T="LedColorMode" Value="LedColorMode.Rgb">RGB</MudSelectItem>
+</MudSelect>
+
+@if (Settings.ColorMode == LedColorMode.Rgb)
+{
+    <div class="mt-2">
+        <VirtualMixerColorPicker Label="Farbe" Value="@Settings.ColorHex" ValueChanged="OnColorChanged" AllowClear="false" />
+    </div>
+}
+
+<MudSelect T="ControlOrientation" Value="Settings.Orientation" ValueChanged="OnOrientationChanged" Label="Füllrichtung" Margin="Margin.Dense" Dense="true" Class="mt-2">
+    <MudSelectItem T="ControlOrientation" Value="ControlOrientation.Horizontal">Horizontal</MudSelectItem>
+    <MudSelectItem T="ControlOrientation" Value="ControlOrientation.Vertical">Vertikal</MudSelectItem>
+</MudSelect>
+
+@code {
+    [Parameter] public required ControlEditContext Context { get; set; }
+
+    private StatusbarSettings Settings => (StatusbarSettings)Context.Instance.Settings;
+
+    private void OnColorModeChanged(LedColorMode mode) =>
+        Context.Update(c => ((StatusbarSettings)c.Settings).ColorMode = mode, "statusbar-mode");
+
+    private void OnColorChanged(string? color) =>
+        Context.Update(c => ((StatusbarSettings)c.Settings).ColorHex = color, "statusbar-color");
+
+    private void OnOrientationChanged(ControlOrientation orientation) =>
+        Context.Update(c => ((StatusbarSettings)c.Settings).Orientation = orientation, "statusbar-orientation");
+}

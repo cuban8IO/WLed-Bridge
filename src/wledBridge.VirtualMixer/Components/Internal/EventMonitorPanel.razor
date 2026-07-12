@@ -1,0 +1,81 @@
+@namespace wledBridge.VirtualMixer.Components.Internal
+@using wledBridge.VirtualMixer.State
+@implements IDisposable
+@inject EventMonitorBuffer Buffer
+
+<div style="border-top:1px solid var(--mud-palette-lines-default);">
+    <div style="display:flex;align-items:center;gap:8px;padding:2px 10px;cursor:pointer;" @onclick="Toggle">
+        <MudIcon Icon="@(_expanded ? Icons.Material.Filled.ExpandMore : Icons.Material.Filled.ExpandLess)" Size="Size.Small" />
+        <MudText Typo="Typo.subtitle2">Event-Monitor</MudText>
+        <MudSpacer />
+        @if (_expanded)
+        {
+            <span @onclick:stopPropagation="true">
+                <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="@(() => Buffer.Clear())">Logs leeren</MudButton>
+            </span>
+        }
+    </div>
+
+    @if (_expanded)
+    {
+        <div style="height:180px;overflow-y:auto;font-size:12px;">
+            <table style="width:100%;border-collapse:collapse;">
+                <thead>
+                    <tr style="text-align:left;position:sticky;top:0;background:var(--mud-palette-surface);">
+                        <th style="padding:2px 8px;">Zeit</th>
+                        <th style="padding:2px 8px;">Mixer</th>
+                        <th style="padding:2px 8px;">Control</th>
+                        <th style="padding:2px 8px;">Typ</th>
+                        <th style="padding:2px 8px;">Event</th>
+                        <th style="padding:2px 8px;">Alt</th>
+                        <th style="padding:2px 8px;">Neu</th>
+                        <th style="padding:2px 8px;">Quelle</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var entry in Buffer.GetEntries())
+                    {
+                        <tr style="border-top:1px solid var(--mud-palette-lines-default);">
+                            <td style="padding:2px 8px;white-space:nowrap;">@entry.Timestamp.ToString("HH:mm:ss.fff")</td>
+                            <td style="padding:2px 8px;">@entry.MixerName</td>
+                            <td style="padding:2px 8px;">@entry.ControlName@(entry.SubIndex is { } sub ? $" [{sub + 1}]" : "")</td>
+                            <td style="padding:2px 8px;">@entry.TypeKey</td>
+                            <td style="padding:2px 8px;">@entry.EventName</td>
+                            <td style="padding:2px 8px;">@(entry.OldValueText ?? "–")</td>
+                            <td style="padding:2px 8px;">@(entry.NewValueText ?? "–")</td>
+                            <td style="padding:2px 8px;">@entry.Source</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _expanded;
+    private bool _renderScheduled;
+
+    protected override void OnInitialized() => Buffer.Changed += OnBufferChanged;
+
+    private void Toggle() => _expanded = !_expanded;
+
+    private void OnBufferChanged()
+    {
+        // Throttle: high-frequency event streams (fader sweeps) render at most every 100 ms.
+        if (!_expanded || _renderScheduled)
+        {
+            return;
+        }
+
+        _renderScheduled = true;
+        _ = InvokeAsync(async () =>
+        {
+            await Task.Delay(100);
+            _renderScheduled = false;
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose() => Buffer.Changed -= OnBufferChanged;
+}

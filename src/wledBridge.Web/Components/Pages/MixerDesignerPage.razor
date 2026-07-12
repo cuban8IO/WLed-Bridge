@@ -1,0 +1,17 @@
+@page "/mixer/designer/{MixerId:guid}"
+@using wledBridge.VirtualMixer.Components
+
+<PageTitle>Mixer-Designer</PageTitle>
+
+<MudText Typo="Typo.h3" GutterBottom="true">Mixer-Designer</MudText>
+<MudText Typo="Typo.body1" Class="mb-4">
+    Bearbeitungsmodus aktivieren, Controls aus der Toolbox platzieren (Drag &amp; Drop oder +),
+    per Schraubenschlüssel konfigurieren. Zum Ausprobieren Bearbeitungsmodus ausschalten -
+    die Controls sind dann live bedienbar.
+</MudText>
+
+<VirtualMixerDesigner MixerId="@MixerId" />
+
+@code {
+    [Parameter] public Guid MixerId { get; set; }
+}

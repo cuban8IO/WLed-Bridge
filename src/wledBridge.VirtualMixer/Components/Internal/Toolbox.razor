@@ -1,0 +1,84 @@
+@namespace wledBridge.VirtualMixer.Components.Internal
+@using wledBridge.VirtualMixer.Designer
+@implements IDisposable
+@inject ControlRegistry Registry
+@inject ControlTemplateService Templates
+
+<div style="width:190px;flex-shrink:0;border-right:1px solid var(--mud-palette-lines-default);padding:8px;overflow-y:auto;">
+    <MudText Typo="Typo.subtitle2" Class="mb-2">Toolbox</MudText>
+
+    @foreach (var descriptor in Registry.All)
+    {
+        var typeKey = descriptor.TypeKey;
+        <div draggable="true"
+             @ondragstart="@(() => Ds.PendingToolboxTypeKey = typeKey)"
+             style="display:flex;align-items:center;gap:8px;padding:6px;border:1px solid var(--mud-palette-lines-default);
+                    border-radius:4px;margin-bottom:6px;cursor:grab;background:var(--mud-palette-surface);">
+            <MudIcon Icon="@descriptor.Icon" Size="Size.Small" />
+            <span style="flex:1;font-size:13px;">@descriptor.DisplayName</span>
+            <MudTooltip Text="Hinzufügen">
+                <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small"
+                               OnClick="@(() => AddDirect(typeKey))" />
+            </MudTooltip>
+        </div>
+    }
+
+    @if (_templates.Count > 0)
+    {
+        <MudText Typo="Typo.subtitle2" Class="mb-2 mt-4">Templates</MudText>
+        @foreach (var template in _templates)
+        {
+            var current = template;
+            <div draggable="true"
+                 @ondragstart="@(() => Ds.PendingTemplateId = current.Id)"
+                 style="display:flex;align-items:center;gap:8px;padding:6px;border:1px dashed var(--mud-palette-lines-default);
+                        border-radius:4px;margin-bottom:6px;cursor:grab;background:var(--mud-palette-surface);">
+                <MudIcon Icon="@(Registry.Find(current.TypeKey)?.Icon ?? Icons.Material.Filled.Widgets)" Size="Size.Small" />
+                <span style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;" title="@current.Name">@current.Name</span>
+                <MudTooltip Text="Hinzufügen">
+                    <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small"
+                                   OnClick="@(() => AddTemplateDirect(current))" />
+                </MudTooltip>
+                <MudTooltip Text="Template löschen">
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                   OnClick="@(() => Templates.DeleteAsync(current.Id))" />
+                </MudTooltip>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [CascadingParameter] internal DesignerState Ds { get; set; } = default!;
+
+    private IReadOnlyList<ControlTemplate> _templates = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        Templates.Changed += OnTemplatesChanged;
+        _templates = await Templates.GetTemplatesAsync();
+    }
+
+    private void OnTemplatesChanged(object? sender, EventArgs e) => _ = InvokeAsync(async () =>
+    {
+        _templates = await Templates.GetTemplatesAsync();
+        StateHasChanged();
+    });
+
+    private void AddDirect(string typeKey)
+    {
+        var group = Ds.Mixer.Groups.OrderBy(g => g.Order).First(g => !g.IsCollapsed);
+        var control = Ds.CreateControl(typeKey);
+        Ds.AddControl(control, group, 10, 10);
+    }
+
+    private void AddTemplateDirect(ControlTemplate template)
+    {
+        var group = Ds.Mixer.Groups.OrderBy(g => g.Order).First(g => !g.IsCollapsed);
+        var control = Templates.Instantiate(template);
+        control.Name = $"{control.Name} Kopie";
+        Ds.AddControl(control, group, 10, 10);
+    }
+
+    public void Dispose() => Templates.Changed -= OnTemplatesChanged;
+}

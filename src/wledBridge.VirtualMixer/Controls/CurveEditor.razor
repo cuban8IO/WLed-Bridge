@@ -1,0 +1,25 @@
+@namespace wledBridge.VirtualMixer.Controls
+
+@* Shared curve configuration (fader, knob, knob bank). *@
+<MudSelect T="CurveType" Value="Curve.Type" ValueChanged="OnTypeChanged" Label="Kennlinie" Margin="Margin.Dense" Dense="true">
+    <MudSelectItem T="CurveType" Value="CurveType.Linear">Linear</MudSelectItem>
+    <MudSelectItem T="CurveType" Value="CurveType.Exponential">Exponentiell</MudSelectItem>
+    <MudSelectItem T="CurveType" Value="CurveType.Logarithmic">Logarithmisch</MudSelectItem>
+</MudSelect>
+
+@if (Curve.Type != CurveType.Linear)
+{
+    <MudNumericField T="double" Value="Curve.Gamma" ValueChanged="OnGammaChanged" Label="Faktor (γ)"
+                     Min="1" Max="10" Step="0.1" Margin="Margin.Dense" Class="mt-1" />
+}
+
+@code {
+    [Parameter] public required Curve Curve { get; set; }
+    [Parameter] public EventCallback<Curve> CurveChanged { get; set; }
+
+    private Task OnTypeChanged(CurveType type) =>
+        CurveChanged.InvokeAsync(new Curve { Type = type, Gamma = Curve.Gamma });
+
+    private Task OnGammaChanged(double gamma) =>
+        CurveChanged.InvokeAsync(new Curve { Type = Curve.Type, Gamma = gamma });
+}

@@ -1,0 +1,257 @@
+@namespace wledBridge.VirtualMixer.Components.Internal
+@using wledBridge.VirtualMixer.Designer
+@using wledBridge.VirtualMixer.State
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+@{
+    var rect = EffectiveRect;
+    var classes = "vm-control"
+        + (IsSelected ? " vm-selected" : "")
+        + (IsOverlapping ? " vm-overlap" : "")
+        + (!Control.IsEnabled && !EditMode ? " vm-disabled" : "");
+}
+
+<div class="@classes" id="@ElementId"
+     style="left:@(rect.X)px;top:@(rect.Y)px;width:@(rect.W)px;height:@(rect.H)px;">
+    <div style="width:100%;height:100%;@(EditMode ? "pointer-events:none;" : "")">
+        <DynamicComponent Type="@Descriptor.RendererComponent" Parameters="@RendererParameters" />
+    </div>
+
+    @if (!string.IsNullOrEmpty(Control.Label) && ShowExternalLabel)
+    {
+        <div class="vm-control-label">@Control.Label</div>
+    }
+
+    @if (EditMode)
+    {
+        <div @ref="_dragElement" style="position:absolute;inset:0;cursor:move;z-index:10;"></div>
+
+        @if (IsSelected)
+        {
+            <div class="vm-wrench" title="Konfigurieren" @onclick="OpenConfig" @onclick:stopPropagation="true"
+                 @onpointerdown:stopPropagation="true">
+                <svg viewBox="0 0 24 24"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg>
+            </div>
+
+            @if (Ds!.Selection.Count == 1)
+            {
+                @foreach (var handle in Handles)
+                {
+                    <div @ref="_handleElements[HandleIndex(handle)]" class="vm-handle @handle"></div>
+                }
+            }
+        }
+    }
+</div>
+
+@code {
+    private static readonly string[] Handles = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
+
+    [Parameter] public required ControlInstance Control { get; set; }
+    [Parameter] public required MixerGroup Group { get; set; }
+    [Parameter] public required IControlDescriptor Descriptor { get; set; }
+    [CascadingParameter] internal DesignerState? Ds { get; set; }
+    [CascadingParameter(Name = "VmScale")] public double Scale { get; set; } = 1.0;
+
+    private ElementReference _dragElement;
+    private readonly ElementReference[] _handleElements = new ElementReference[8];
+
+    private IJSObjectReference? _module;
+    private IJSObjectReference? _dragAttachment;
+    private readonly List<(IJSObjectReference Attachment, DotNetObjectReference<HandleProxy> Proxy)> _handleAttachments = [];
+    private DotNetObjectReference<ControlHost>? _selfRef;
+    private bool _dragAttached;
+    private bool _handlesAttached;
+    private bool _dragShift;
+
+    private bool EditMode => Ds?.EditMode == true;
+    private bool IsSelected => Ds?.Selection.Contains(Control.Id) == true && EditMode;
+    private bool IsOverlapping => EditMode && Ds?.Overlaps.Contains(Control.Id) == true;
+    private string ElementId => $"vmc-{Control.Id}";
+
+    private bool ShowExternalLabel => Control.TypeKey != BuiltInControlTypes.Button;
+
+    private (int X, int Y, int W, int H) EffectiveRect =>
+        Ds?.ResizePreview is { } preview && preview.ControlId == Control.Id
+            ? (preview.X, preview.Y, preview.W, preview.H)
+            : (Control.X, Control.Y, Control.Width, Control.Height);
+
+    private Dictionary<string, object?> RendererParameters => new()
+    {
+        [nameof(Controls.ControlRendererBase.Instance)] = Control,
+        [nameof(Controls.ControlRendererBase.EditMode)] = EditMode
+    };
+
+    private static int HandleIndex(string handle) => Array.IndexOf(Handles, handle);
+
+    protected override void OnParametersSet()
+    {
+        // Leaving edit mode removes the drag overlay element; re-attach on next entry.
+        if (!EditMode && _dragAttached)
+        {
+            _dragAttached = false;
+            _ = DisposeDragAttachmentAsync();
+        }
+    }
+
+    private async Task DisposeDragAttachmentAsync()
+    {
+        if (_dragAttachment is null)
+        {
+            return;
+        }
+
+        var attachment = _dragAttachment;
+        _dragAttachment = null;
+        try
+        {
+            await attachment.InvokeVoidAsync("dispose");
+            await attachment.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (EditMode && !_dragAttached)
+        {
+            _dragAttached = true;
+            _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./_content/wledBridge.VirtualMixer/virtualmixer.js");
+            _selfRef ??= DotNetObjectReference.Create(this);
+            _dragAttachment = await _module.InvokeAsync<IJSObjectReference>("attachDrag", _dragElement, _selfRef, new
+            {
+                scale = Scale,
+                visual = "translate",
+                visualTargetId = ElementId
+            });
+        }
+
+        var wantHandles = EditMode && IsSelected && Ds!.Selection.Count == 1;
+        if (wantHandles && !_handlesAttached)
+        {
+            _handlesAttached = true;
+            _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./_content/wledBridge.VirtualMixer/virtualmixer.js");
+            for (var i = 0; i < Handles.Length; i++)
+            {
+                var proxy = DotNetObjectReference.Create(new HandleProxy(this, Handles[i]));
+                var attachment = await _module.InvokeAsync<IJSObjectReference>("attachDrag", _handleElements[i], proxy, new
+                {
+                    scale = Scale,
+                    visual = "none"
+                });
+                _handleAttachments.Add((attachment, proxy));
+            }
+        }
+        else if (!wantHandles && _handlesAttached)
+        {
+            _handlesAttached = false;
+            await DisposeHandleAttachmentsAsync();
+        }
+    }
+
+    // ------------------------------------------------------------- move drag callbacks
+
+    [JSInvokable]
+    public void OnDragStart(bool shiftKey, bool ctrlKey)
+    {
+        _dragShift = shiftKey;
+        if (Ds is null)
+        {
+            return;
+        }
+
+        if (!Ds.Selection.Contains(Control.Id))
+        {
+            Ds.Select(Control.Id, additive: shiftKey);
+        }
+    }
+
+    [JSInvokable]
+    public void OnDragMove(double dx, double dy) =>
+        Ds?.UpdateDragSnap((int)Math.Round(dx), (int)Math.Round(dy));
+
+    [JSInvokable]
+    public void OnDragEnd(double dx, double dy, bool moved)
+    {
+        if (Ds is null)
+        {
+            return;
+        }
+
+        if (moved)
+        {
+            Ds.CommitMove((int)Math.Round(dx), (int)Math.Round(dy));
+        }
+        else
+        {
+            Ds.ClearDragSnap();
+            Ds.Select(Control.Id, additive: _dragShift);
+        }
+    }
+
+    private void OpenConfig() => Ds?.OpenConfig(Control.Id);
+
+    // ------------------------------------------------------------- resize handle proxy
+
+    internal sealed class HandleProxy(ControlHost owner, string handle)
+    {
+        [JSInvokable]
+        public void OnDragStart(bool shiftKey, bool ctrlKey)
+        {
+        }
+
+        [JSInvokable]
+        public void OnDragMove(double dx, double dy) =>
+            owner.Ds?.PreviewResize(owner.Control.Id, handle, (int)Math.Round(dx), (int)Math.Round(dy));
+
+        [JSInvokable]
+        public void OnDragEnd(double dx, double dy, bool moved) =>
+            owner.Ds?.CommitResize(owner.Control.Id, handle, (int)Math.Round(dx), (int)Math.Round(dy));
+    }
+
+    private async Task DisposeHandleAttachmentsAsync()
+    {
+        foreach (var (attachment, proxy) in _handleAttachments)
+        {
+            try
+            {
+                await attachment.InvokeVoidAsync("dispose");
+                await attachment.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+
+            proxy.Dispose();
+        }
+
+        _handleAttachments.Clear();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_dragAttachment is not null)
+            {
+                await _dragAttachment.InvokeVoidAsync("dispose");
+                await _dragAttachment.DisposeAsync();
+            }
+
+            await DisposeHandleAttachmentsAsync();
+
+            if (_module is not null)
+            {
+                await _module.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+
+        _selfRef?.Dispose();
+    }
+}

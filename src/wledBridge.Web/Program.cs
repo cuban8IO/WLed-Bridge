@@ -3,6 +3,8 @@ using MudBlazor.Services;
 using wledBridge.Application;
 using wledBridge.Infrastructure;
 using wledBridge.Infrastructure.Persistence;
+using wledBridge.VirtualMixer;
+using wledBridge.VirtualMixer.Http;
 using wledBridge.Web.Components;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -15,6 +17,13 @@ builder.Services.AddMudServices();
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
+
+// Virtual Mixer module (standalone RCL) + SignalR for its opt-in remote-control hub.
+builder.Services.AddSignalR();
+builder.Services.AddVirtualMixer(options =>
+{
+    options.StoragePath = Path.Combine(builder.Environment.ContentRootPath, "virtualmixer-data");
+});
 
 var app = builder.Build();
 
@@ -39,5 +48,9 @@ app.UseAntiforgery();
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
+
+// Opt-in remote control for the Virtual Mixer (REST + SignalR hub at /api/virtualmixer/hub).
+// Unauthenticated by design for the local network - securing this is a host decision.
+app.MapVirtualMixerApi();
 
 app.Run();

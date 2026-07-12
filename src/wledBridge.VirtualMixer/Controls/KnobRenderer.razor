@@ -1,0 +1,107 @@
+@namespace wledBridge.VirtualMixer.Controls
+@using wledBridge.VirtualMixer.State
+@inherits ControlRendererBase
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div @ref="_element" class="vm-knob" @onwheel="OnWheel" @onwheel:preventDefault="@Interactive">
+    <KnobFace Position="@KnobPosition" />
+</div>
+
+@code {
+    private const double DragPixelsForFullRange = 150.0;
+    private const double RelativeTickPixels = 4.0;
+
+    private ElementReference _element;
+    private IJSObjectReference? _module;
+    private IJSObjectReference? _drag;
+    private DotNetObjectReference<KnobRenderer>? _selfRef;
+    private bool _interactiveAttached;
+    private double _dragStartPosition;
+    private double _relativeSentPixels;
+
+    private KnobSettings Settings => (KnobSettings)Instance.Settings;
+
+    private bool IsRelative => Settings.Mode == KnobMode.Relative;
+
+    private double? KnobPosition => IsRelative ? null : Settings.Curve.ToPosition(State?.Value ?? 0);
+
+    [CascadingParameter(Name = "VmScale")] public double Scale { get; set; } = 1.0;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Interactive && !_interactiveAttached)
+        {
+            _interactiveAttached = true;
+            _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/wledBridge.VirtualMixer/virtualmixer.js");
+            _selfRef = DotNetObjectReference.Create(this);
+            _drag = await _module.InvokeAsync<IJSObjectReference>("attachKnobDrag", _element, _selfRef, new { scale = Scale });
+        }
+    }
+
+    [JSInvokable]
+    public void OnKnobDragStart()
+    {
+        _dragStartPosition = KnobPosition ?? 0;
+        _relativeSentPixels = 0;
+    }
+
+    [JSInvokable]
+    public async Task OnKnobDrag(double totalDy, bool isFinal)
+    {
+        if (IsRelative)
+        {
+            var ticks = (int)((totalDy - _relativeSentPixels) / RelativeTickPixels);
+            if (ticks != 0)
+            {
+                _relativeSentPixels += ticks * RelativeTickPixels;
+                await Send(new KnobDeltaCommand(Instance.Id, null, ticks));
+            }
+        }
+        else
+        {
+            var position = Math.Clamp(_dragStartPosition + (totalDy / DragPixelsForFullRange), 0.0, 1.0);
+            await Send(new SetValueCommand(Instance.Id, Settings.Curve.Apply(position), CommandSource.Ui));
+        }
+    }
+
+    private Task OnWheel(WheelEventArgs e)
+    {
+        if (!Interactive)
+        {
+            return Task.CompletedTask;
+        }
+
+        var direction = e.DeltaY < 0 ? 1 : -1;
+        if (IsRelative)
+        {
+            return Send(new KnobDeltaCommand(Instance.Id, null, direction));
+        }
+
+        var value = Math.Clamp((State?.Value ?? 0) + (direction * 3), 0, 127);
+        return Send(new SetValueCommand(Instance.Id, value, CommandSource.Ui));
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        Dispose();
+        try
+        {
+            if (_drag is not null)
+            {
+                await _drag.InvokeVoidAsync("dispose");
+                await _drag.DisposeAsync();
+            }
+
+            if (_module is not null)
+            {
+                await _module.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+
+        _selfRef?.Dispose();
+    }
+}

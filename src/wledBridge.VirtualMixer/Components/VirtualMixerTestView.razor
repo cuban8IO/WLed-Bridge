@@ -1,0 +1,91 @@
+@namespace wledBridge.VirtualMixer.Components
+@using wledBridge.VirtualMixer.Controls
+@implements IDisposable
+@inject IVirtualMixerManager Manager
+
+@* Test view: deliberately renders the SAME runtime component as everywhere else, so designer
+   and runtime can never drift apart. The simulation drives values exclusively through the
+   public module API. *@
+
+<MudPaper Class="pa-3 mb-3" Elevation="2">
+    <MudStack Row="true" Spacing="3" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap">
+        <MudText Typo="Typo.subtitle1">Simulation</MudText>
+        <MudSelect T="SimulationPattern" @bind-Value="_pattern" Label="Muster" Margin="Margin.Dense" Dense="true" Style="max-width:160px;">
+            <MudSelectItem T="SimulationPattern" Value="SimulationPattern.Sine">Sinus</MudSelectItem>
+            <MudSelectItem T="SimulationPattern" Value="SimulationPattern.Random">Zufall</MudSelectItem>
+            <MudSelectItem T="SimulationPattern" Value="SimulationPattern.Sweep">Sweep</MudSelectItem>
+        </MudSelect>
+        @if (Simulation.IsRunning)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Error" Size="Size.Small" OnClick="@(() => Simulation.Stop())">Stopp</MudButton>
+        }
+        else
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" OnClick="StartSimulation"
+                       Disabled="@(_definition is null)">Start</MudButton>
+        }
+        <MudText Typo="Typo.caption" Style="opacity:0.7;">
+            Simuliert Werte über die öffentliche Modul-API (Fader, Regler, Statusbars, LEDs).
+        </MudText>
+    </MudStack>
+</MudPaper>
+
+<VirtualMixer MixerId="@MixerId" Sizing="@Sizing" FixedWidth="@FixedWidth" FixedHeight="@FixedHeight" />
+
+@code {
+    [Parameter] public Guid? MixerId { get; set; }
+    [Parameter] public MixerSizing Sizing { get; set; } = MixerSizing.Natural;
+    [Parameter] public int FixedWidth { get; set; } = 800;
+    [Parameter] public int FixedHeight { get; set; } = 400;
+
+    [Inject] internal SimulationService Simulation { get; set; } = default!;
+
+    private MixerDefinition? _definition;
+    private SimulationPattern _pattern = SimulationPattern.Sine;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _definition = MixerId is { } id
+            ? await Manager.GetMixerAsync(id)
+            : await Manager.GetActiveMixerAsync();
+        Simulation.StateChanged += OnSimulationChanged;
+    }
+
+    private void OnSimulationChanged(object? sender, EventArgs e) => _ = InvokeAsync(StateHasChanged);
+
+    private void StartSimulation()
+    {
+        if (_definition is null)
+        {
+            return;
+        }
+
+        var targets = new List<(Guid, int?)>();
+        foreach (var control in _definition.AllControls)
+        {
+            switch (control.Settings)
+            {
+                case FaderSettings or StatusbarSettings:
+                    targets.Add((control.Id, null));
+                    break;
+                case KnobSettings { Mode: KnobMode.Absolute }:
+                    targets.Add((control.Id, null));
+                    break;
+                case KnobBankSettings bank when bank.Mode == KnobMode.Absolute:
+                    for (var i = 0; i < bank.Count; i++)
+                    {
+                        targets.Add((control.Id, i));
+                    }
+                    break;
+            }
+        }
+
+        Simulation.Start(targets, _pattern);
+    }
+
+    public void Dispose()
+    {
+        Simulation.StateChanged -= OnSimulationChanged;
+        Simulation.Stop();
+    }
+}
