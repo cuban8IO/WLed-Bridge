@@ -23,6 +23,7 @@ internal sealed class MixerRuntimeState : IVirtualMixerRuntime, IAsyncDisposable
     private readonly Channel<IControlCommand> _channel = Channel.CreateUnbounded<IControlCommand>();
     private readonly Task _consumerTask;
     private readonly CancellationTokenSource _cts = new();
+    private bool _disposed;
 
     // All dictionaries below are only written on the consumer thread (except registration,
     // which uses concurrent dictionaries to be safe from any caller).
@@ -552,6 +553,16 @@ internal sealed class MixerRuntimeState : IVirtualMixerRuntime, IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        // Idempotent: the DI container disposes this singleton once per registration, and it is registered
+        // both as itself and behind IVirtualMixerRuntime, so DisposeAsync is called twice. Without this
+        // guard the second call hit an already-disposed _cts and threw ObjectDisposedException, which took
+        // down any host that shuts down cleanly.
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
         _channel.Writer.TryComplete();
         _cts.Cancel();
         try
